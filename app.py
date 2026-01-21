@@ -2,92 +2,102 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
-import requests
 
 # --- 1. ตั้งค่าหน้าเว็บ ---
-st.set_page_config(page_title="Stock Anti-Block", page_icon="🛡️", layout="wide")
-st.title("🛡️ Stock AI: ระบบป้องกันการโดนบล็อก")
+st.set_page_config(page_title="Stock Analyzer", page_icon="📈", layout="wide")
+st.title("📈 Stock Analyzer: ระบบวิเคราะห์หุ้น (Cached)")
 
-# --- 2. ฟังก์ชันปลอมตัว (Session Hack) ---
-def get_session():
-    session = requests.Session()
-    # ปลอมเป็น Chrome บน Windows เพื่อหลอก Yahoo
-    session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5'
-    })
-    return session
+# --- 2. ฟังก์ชันดึงข้อมูล (หัวใจสำคัญ: ใส่ Cache ไว้กันโดนบล็อก) ---
+# ttl=3600 แปลว่า จำข้อมูลไว้ 1 ชั่วโมง (ถ้าค้นตัวเดิมภายใน 1 ชม. จะไม่ยิง Yahoo ใหม่)
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_stock_data(symbol):
+    try:
+        # ปล่อยให้ yf จัดการตัวเอง (ตามที่ Error แนะนำ)
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(period="2y")
+        return df
+    except Exception as e:
+        return None
 
-# --- 3. Sidebar ---
+# --- 3. Sidebar ค้นหา ---
 with st.sidebar:
     st.header("🔍 ค้นหาหุ้น")
-    symbol_input = st.text_input("ชื่อหุ้น (เช่น EOSE, TSLA, PTT.BK):", value="EOSE").upper().strip()
+    # ใช้ Form เพื่อให้กด Enter ได้และไม่รีโหลดบ่อยเกินไป
+    with st.form(key='search_form'):
+        symbol_input = st.text_input("ชื่อหุ้น (เช่น EOSE, TSLA, PTT.BK):", value="EOSE").upper().strip()
+        submit_btn = st.form_submit_button(label='🚀 วิเคราะห์')
     
-    st.caption("เทคนิค: หากยัง Error ให้กดปุ่ม 'Reboot App' ในเมนูของ Streamlit")
+    st.caption("ระบบจะจำข้อมูลไว้ 1 ชม. เพื่อลดโอกาสโดนบล็อก")
     
-    # ปุ่มเริ่มทำงาน
-    run_btn = st.button("🚀 วิเคราะห์ (กดเลย)")
+    if st.button("ล้างความจำ (Clear Cache)"):
+        st.cache_data.clear()
+        st.rerun()
 
 # --- 4. เริ่มทำงาน ---
-if run_btn:
-    with st.spinner(f"กำลังแอบดึงข้อมูล {symbol_input} ..."):
+if submit_btn or symbol_input:
+    # โชว์หมุนๆ ตรงนี้แทน
+    with st.spinner(f"กำลังดึงข้อมูล {symbol_input}..."):
+        df = get_stock_data(symbol_input)
+
+    if df is None or df.empty:
+        st.error(f"❌ ไม่พบข้อมูล: {symbol_input}")
+        st.warning("สาเหตุที่เป็นไปได้:\n1. ชื่อหุ้นผิด\n2. Server ของ Streamlit โดน Yahoo บล็อก IP (อันนี้ต้องรอ หรือกด Reboot App)")
+    else:
         try:
-            # ใช้ Session ที่ปลอมตัวแล้ว ส่งเข้าไปดึงข้อมูล
-            session = get_session()
-            
-            # ดึงข้อมูลผ่าน Ticker โดยยัด Session เข้าไป (ถ้าทำได้)
-            ticker = yf.Ticker(symbol_input, session=session)
-            df = ticker.history(period="1y")
-            
-            # ถ้าวิธีแรกไม่มา ลองวิธี download แบบบ้านๆ แต่ใส่ session
-            if df.empty:
-                # yfinance เวอร์ชั่นใหม่บางทีรับ session โดยตรงไม่ได้ ต้องลอง download ปกติแต่ลุ้น IP
-                df = yf.download(symbol_input, period="1y", progress=False)
+            # --- จัดการข้อมูล ---
+            df = df.reset_index()
+            # แก้ MultiIndex
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = [c[0] for c in df.columns]
+            # แก้ชื่อคอลัมน์เป็นตัวพิมพ์ใหญ่
+            df.columns = [c.capitalize() for c in df.columns]
 
-            if df is None or df.empty:
-                st.error(f"❌ ยังคงไม่พบข้อมูล: {symbol_input}")
-                st.warning("สาเหตุ: IP ของ Server นี้อาจจะติด Blacklist ของ Yahoo ชั่วคราว")
-                st.info("💡 วิธีแก้: ให้กดปุ่ม 3 จุด (มุมขวาบน) -> Manage app -> Reboot app (เพื่อเปลี่ยนเครื่อง Server ใหม่)")
-            else:
-                # --- จัดการข้อมูลให้สวยงาม ---
-                df = df.reset_index()
-                if isinstance(df.columns, pd.MultiIndex):
-                    df.columns = [c[0] for c in df.columns]
+            if 'Close' in df.columns:
+                # คำนวณ Indicator
+                df['EMA200'] = ta.ema(df['Close'], length=200)
+                df['RSI'] = ta.rsi(df['Close'], length=14)
                 
-                # ตรวจสอบชื่อคอลัมน์
-                df.columns = [c.capitalize() for c in df.columns] # Close, Open, High, Low
+                last = df.iloc[-1]
+                price = last['Close']
+                ema200 = last['EMA200']
                 
-                if 'Close' in df.columns:
-                    # คำนวณค่าต่างๆ
-                    last_price = df['Close'].iloc[-1]
-                    df['EMA200'] = ta.ema(df['Close'], length=200)
-                    df['RSI'] = ta.rsi(df['Close'], length=14)
-                    
-                    # --- แสดงผล ---
-                    st.success(f"✅ ดึงข้อมูลสำเร็จ! ({len(df)} วันทำการ)")
-                    
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("ชื่อหุ้น", symbol_input)
-                    c2.metric("ราคาล่าสุด", f"{last_price:.2f}")
-                    c3.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
-                    
-                    st.line_chart(df.set_index('Date')['Close'])
-                    
-                    # Logic ง่ายๆ
-                    ema200 = df['EMA200'].iloc[-1]
+                # --- แสดงผล Dashboard ---
+                col1, col2, col3 = st.columns(3)
+                col1.metric("ชื่อหุ้น", symbol_input)
+                col1.success("✅ ดึงข้อมูลสำเร็จ")
+                col2.metric("ราคาล่าสุด", f"{price:.2f}")
+                col3.metric("RSI", f"{last['RSI']:.2f}")
+
+                st.divider()
+
+                # กราฟ
+                st.line_chart(df.set_index('Date')['Close'])
+                
+                # Logic วิเคราะห์
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.subheader("🤖 วิเคราะห์เทรนด์")
                     if pd.notna(ema200):
-                        if last_price > ema200:
-                            st.info(f"📈 ขาขึ้น (ราคาอยู่เหนือเส้น 200 วันที่ {ema200:.2f})")
+                        if price > ema200:
+                            st.success(f"📈 **ขาขึ้น (Uptrend)**\nราคาอยู่เหนือเส้น 200 วัน ({ema200:.2f})")
                         else:
-                            st.error(f"📉 ขาลง (ราคาอยู่ต่ำกว่าเส้น 200 วันที่ {ema200:.2f})")
-                    
-                    with st.expander("ดูข้อมูลดิบ"):
-                        st.dataframe(df.tail())
-                else:
-                    st.error("ข้อมูลมาไม่ครบ (ขาดราคา Close)")
+                            st.error(f"📉 **ขาลง (Downtrend)**\nราคาอยู่ต่ำกว่าเส้น 200 วัน ({ema200:.2f})")
+                    else:
+                        st.warning("ข้อมูลไม่พอคำนวณเส้น EMA 200")
+                
+                with c2:
+                    st.subheader("💡 คำแนะนำ")
+                    if pd.notna(ema200):
+                        if price > ema200:
+                            st.info("หาจังหวะ **Buy on Dip** (ย่อซื้อ) ตามแนวรับ")
+                        else:
+                            st.warning("ควร **Wait & See** หรือหาจังหวะเด้งขาย (Sell on Rise)")
 
+                # ข้อมูลดิบ
+                with st.expander("ดูข้อมูลย้อนหลัง"):
+                    st.dataframe(df.tail())
+            else:
+                st.error("ข้อมูลมาไม่ครบ (ไม่มีราคา Close)")
+                
         except Exception as e:
-            st.error(f"เกิดข้อผิดพลาด: {e}")
-            st.write("ลองกด Reboot App ดูนะครับ")
-            
+            st.error(f"เกิดข้อผิดพลาดในการคำนวณ: {e}")
