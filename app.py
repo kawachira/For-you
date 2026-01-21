@@ -4,112 +4,87 @@ import pandas as pd
 import pandas_ta as ta
 
 # --- 1. ตั้งค่าหน้าเว็บ ---
-st.set_page_config(page_title="Pro Stock Trader", page_icon="📈", layout="wide")
-st.title("📈 Pro Stock Trader: ระบบวิเคราะห์หุ้น (Stable)")
+st.set_page_config(page_title="Stock Fix", page_icon="🔧", layout="wide")
+st.title("🔧 Stock AI: Debug Version")
 
-# --- 2. ระบบความจำ (Session State) แก้ปัญหากด 2 ที ---
-if 'df' not in st.session_state:
-    st.session_state.df = None
-if 'symbol' not in st.session_state:
-    st.session_state.symbol = ""
-
-# --- 3. กล่องค้นหา (Sidebar) ---
+# --- 2. ส่วนค้นหา ---
 with st.sidebar:
     st.header("🔍 ค้นหาหุ้น")
-    with st.form(key='my_form'):
-        # รับค่าชื่อหุ้น
-        symbol_input = st.text_input("ชื่อหุ้น (เช่น EOSE, TSLA, PTT.BK):", value="EOSE").upper().strip()
-        # ปุ่มกด
-        submit_button = st.form_submit_button(label='🚀 วิเคราะห์ (กดทีเดียว)')
+    symbol = st.text_input("ชื่อหุ้น (เช่น TSLA, NVDA, PTT.BK):", value="EOSE").upper().strip()
+    st.caption("⚠️ หุ้นไทยต้องมี .BK (เช่น CPALL.BK)")
+    
+    if st.button("ล้าง Cache (กดเมื่อค้าง)", type="secondary"):
+        st.cache_data.clear()
 
-# --- 4. Logic การดึงข้อมูล (ทำงานเมื่อกดปุ่ม) ---
-if submit_button:
-    with st.spinner(f"กำลังดึงข้อมูล {symbol_input}..."):
-        try:
-            # ใช้ yf.Ticker จะเสถียรกว่า download ปกติ
-            ticker = yf.Ticker(symbol_input)
-            df = ticker.history(period="2y")
+# --- 3. ฟังก์ชันดึงข้อมูล (ใช้ Cache ป้องกันการโดนบล็อก) ---
+@st.cache_data(ttl=300) # เก็บข้อมูลไว้ 5 นาที ไม่ต้องโหลดใหม่บ่อยๆ
+def get_stock_data(ticker_symbol):
+    try:
+        # วิธีที่ 1: ใช้ Ticker.history (เสถียรกว่าสำหรับหุ้นรายตัว)
+        stock = yf.Ticker(ticker_symbol)
+        df = stock.history(period="1y")
+        
+        # ถ้าวิธี 1 ไม่ได้ผล ลองวิธี 2: download
+        if df.empty:
+            df = yf.download(ticker_symbol, period="1y", progress=False)
+        
+        return df
+    except Exception as e:
+        return None
+
+# --- 4. เริ่มทำงาน ---
+if symbol:
+    st.subheader(f"ผลการตรวจสอบ: {symbol}")
+    
+    with st.spinner('กำลังเชื่อมต่อ Yahoo Finance...'):
+        df = get_stock_data(symbol)
+
+    # เช็คว่าได้ข้อมูลมาจริงไหม
+    if df is None or df.empty:
+        st.error(f"❌ ไม่พบข้อมูล: {symbol}")
+        st.warning("สาเหตุที่เป็นไปได้:\n1. ชื่อหุ้นผิด (อย่าลืม .BK สำหรับหุ้นไทย)\n2. Yahoo Finance บล็อก IP ของ Streamlit ชั่วคราว (รอ 15 นาทีแล้วลองใหม่)")
+    else:
+        # --- ถ้ามีข้อมูล ให้จัดการ Format ---
+        # Reset Index ให้ Date เป็น Column ปกติ (แก้อาการ Index ซ้อน)
+        df = df.reset_index()
+        
+        # แก้ปัญหา Column ซ้อน (MultiIndex) ที่ yfinance ชอบเป็น
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [col[0] for col in df.columns]
             
-            if df.empty:
-                # ลองอีกวิธีถ้าวิธีแรกไม่มา
-                df = yf.download(symbol_input, period="2y", progress=False)
+        # แปลงชื่อ Column เป็นตัวพิมพ์ใหญ่ทั้งหมด (แก้ปัญหา Close vs close)
+        df.columns = [c.capitalize() for c in df.columns]
 
-            if not df.empty:
-                # จัดการข้อมูลให้เรียบร้อยก่อนบันทึก
-                df = df.reset_index()
-                # แก้ชื่อคอลัมน์ซ้อน (MultiIndex)
-                if isinstance(df.columns, pd.MultiIndex):
-                    df.columns = [c[0] for c in df.columns]
-                # แปลงชื่อคอลัมน์เป็น Title Case (Open, High, Low, Close)
-                df.columns = [c.capitalize() for c in df.columns]
+        # เช็คว่ามีคอลัมน์ราคาไหม
+        if 'Close' in df.columns:
+            # คำนวณเบื้องต้น
+            current_price = df['Close'].iloc[-1]
+            
+            # --- แสดงผล ---
+            col1, col2 = st.columns(2)
+            col1.metric("ราคาล่าสุด", f"{current_price:.2f}")
+            col1.success("✅ ดึงข้อมูลสำเร็จ!")
+            
+            # โชว์ตารางข้อมูลดิบ (เพื่อยืนยันว่าข้อมูลมาจริง)
+            with st.expander("ดูข้อมูลดิบ (Raw Data)", expanded=True):
+                st.dataframe(df.tail(5)) # โชว์ 5 วันล่าสุด
                 
-                # ถ้ามีข้อมูล Save ลงความจำทันที (Session State)
-                if 'Close' in df.columns:
-                    st.session_state.df = df
-                    st.session_state.symbol = symbol_input
-                else:
-                    st.error("ข้อมูลหุ้นมาไม่ครบ (ไม่มีราคาปิด)")
-            else:
-                st.error(f"❌ ไม่พบข้อมูลหุ้น: {symbol_input}")
+            # --- ส่วนกราฟและวิเคราะห์ (ย่อ) ---
+            try:
+                # คำนวณ RSI & EMA
+                df['RSI'] = ta.rsi(df['Close'], length=14)
+                df['EMA200'] = ta.ema(df['Close'], length=200)
                 
-        except Exception as e:
-            st.error(f"เกิดข้อผิดพลาด: {e}")
-
-# --- 5. ส่วนแสดงผล (ดึงจากความจำมาโชว์) ---
-if st.session_state.df is not None:
-    # ดึงข้อมูลจากความจำมาใช้
-    df = st.session_state.df
-    symbol = st.session_state.symbol
-    
-    # คำนวณ Indicator (คำนวณใหม่ทุกครั้งที่โชว์)
-    df['EMA200'] = ta.ema(df['Close'], length=200)
-    df['RSI'] = ta.rsi(df['Close'], length=14)
-    
-    last = df.iloc[-1]
-    price = last['Close']
-    
-    # -- แสดงผล Dashboard --
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.metric("ชื่อหุ้น", symbol)
-    with col2:
-        st.metric("ราคาปัจจุบัน", f"{price:.2f}")
-    with col3:
-        st.metric("RSI", f"{last['RSI']:.2f}")
-
-    st.divider()
-    
-    # -- ส่วนวิเคราะห์ --
-    c1, c2 = st.columns([2, 1])
-    
-    with c1:
-        st.subheader("📊 กราฟราคา")
-        st.line_chart(df.set_index('Date')['Close'])
-        
-    with c2:
-        st.subheader("🤖 AI Analysis")
-        
-        # Logic การวิเคราะห์
-        if pd.notna(last['EMA200']):
-            if price > last['EMA200']:
-                st.success("✅ **TREND: ขาขึ้น (Uptrend)**")
-                st.write(f"ราคายืนเหนือเส้น 200 วัน ({last['EMA200']:.2f})")
-                st.info("กลยุทธ์: หาจังหวะย่อซื้อ (Buy on Dip)")
-            else:
-                st.error("🔻 **TREND: ขาลง (Downtrend)**")
-                st.write(f"ราคาอยู่ใต้เส้น 200 วัน ({last['EMA200']:.2f})")
-                st.warning("กลยุทธ์: เด้งเพื่อขาย หรือรอ (Wait & See)")
+                last_rsi = df['RSI'].iloc[-1]
+                
+                col2.metric("RSI", f"{last_rsi:.2f}")
+                
+                st.line_chart(df.set_index('Date')['Close'])
+                
+            except Exception as e:
+                st.warning(f"คำนวณกราฟไม่ได้: {e}")
+                
         else:
-            st.warning("⚠️ ข้อมูลไม่พอคำนวณเส้น 200 วัน")
+            st.error("⚠️ ดึงข้อมูลได้ แต่ไม่เจอคอลัมน์ราคา (Close)")
+            st.write("คอลัมน์ที่มีตอนนี้:", df.columns.tolist())
             
-    # โชว์ข้อมูลดิบกันเหนียว
-    with st.expander("ดูข้อมูลย้อนหลัง (Raw Data)"):
-        st.dataframe(df.tail())
-
-elif submit_button:
-    # กรณีนี้คือพยายามกดแล้วแต่ไม่เจอข้อมูล
-    pass
-else:
-    # หน้าจอแรกเริ่ม
-    st.info("👈 กรอกชื่อหุ้นที่เมนูด้านซ้าย แล้วกดปุ่มวิเคราะห์ได้เลยครับ")
