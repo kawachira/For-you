@@ -4,100 +4,168 @@ import pandas as pd
 import pandas_ta as ta
 
 # --- 1. ตั้งค่าหน้าเว็บ ---
-st.set_page_config(page_title="Stock Analyzer", page_icon="📈", layout="wide")
-st.title("📈 Stock Analyzer: ระบบวิเคราะห์หุ้น (Cached)")
+st.set_page_config(page_title="AI Expert Trader", page_icon="💎", layout="wide")
 
-# --- 2. ฟังก์ชันดึงข้อมูล (หัวใจสำคัญ: ใส่ Cache ไว้กันโดนบล็อก) ---
-# ttl=3600 แปลว่า จำข้อมูลไว้ 1 ชั่วโมง (ถ้าค้นตัวเดิมภายใน 1 ชม. จะไม่ยิง Yahoo ใหม่)
-@st.cache_data(ttl=3600, show_spinner=False)
-def get_stock_data(symbol):
-    try:
-        # ปล่อยให้ yf จัดการตัวเอง (ตามที่ Error แนะนำ)
-        ticker = yf.Ticker(symbol)
-        df = ticker.history(period="2y")
-        return df
-    except Exception as e:
-        return None
+st.title("💎 AI Expert Trader: ระบบวิเคราะห์หุ้นอัจฉริยะ")
+st.markdown("**(Smart Logic: Strict Support & Resistance Filter)**")
 
-# --- 3. Sidebar ค้นหา ---
+# --- 2. ช่องรับข้อมูล ---
 with st.sidebar:
-    st.header("🔍 ค้นหาหุ้น")
-    # ใช้ Form เพื่อให้กด Enter ได้และไม่รีโหลดบ่อยเกินไป
-    with st.form(key='search_form'):
-        symbol_input = st.text_input("ชื่อหุ้น (เช่น EOSE, TSLA, PTT.BK):", value="EOSE").upper().strip()
-        submit_btn = st.form_submit_button(label='🚀 วิเคราะห์')
-    
-    st.caption("ระบบจะจำข้อมูลไว้ 1 ชม. เพื่อลดโอกาสโดนบล็อก")
-    
-    if st.button("ล้างความจำ (Clear Cache)"):
-        st.cache_data.clear()
-        st.rerun()
+    st.header("⚙️ ตั้งค่าการวิเคราะห์")
+    symbol = st.text_input("พิมพ์ชื่อหุ้น (เช่น EOSE, TSLA, NVDA):", value="EOSE").upper()
+    timeframe = st.selectbox("เลือก Timeframe:", ["1d", "1wk"], index=0)
+    st.caption("แนะนำ: 1d สำหรับเล่นสั้น / 1wk สำหรับถือยาว")
+    run_btn = st.button("🚀 วิเคราะห์เลย", type="primary")
 
-# --- 4. เริ่มทำงาน ---
-if submit_btn or symbol_input:
-    # โชว์หมุนๆ ตรงนี้แทน
-    with st.spinner(f"กำลังดึงข้อมูล {symbol_input}..."):
-        df = get_stock_data(symbol_input)
-
-    if df is None or df.empty:
-        st.error(f"❌ ไม่พบข้อมูล: {symbol_input}")
-        st.warning("สาเหตุที่เป็นไปได้:\n1. ชื่อหุ้นผิด\n2. Server ของ Streamlit โดน Yahoo บล็อก IP (อันนี้ต้องรอ หรือกด Reboot App)")
-    else:
+# --- 3. เริ่มทำงานเมื่อกดปุ่ม ---
+if run_btn:
+    with st.spinner(f"กำลังประมวลผลข้อมูล {symbol} ({timeframe})..."):
         try:
-            # --- จัดการข้อมูล ---
-            df = df.reset_index()
-            # แก้ MultiIndex
-            if isinstance(df.columns, pd.MultiIndex):
-                df.columns = [c[0] for c in df.columns]
-            # แก้ชื่อคอลัมน์เป็นตัวพิมพ์ใหญ่
-            df.columns = [c.capitalize() for c in df.columns]
+            # ดึงข้อมูล
+            period = "max"
+            df = yf.download(symbol, period=period, interval=timeframe, progress=False)
 
-            if 'Close' in df.columns:
-                # คำนวณ Indicator
+            if len(df) > 0:
+                # แก้บั๊กหัวตาราง
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = df.columns.get_level_values(0)
+
+                # คำนวณอินดิเคเตอร์
+                df['EMA20']  = ta.ema(df['Close'], length=20)
+                df['EMA50']  = ta.ema(df['Close'], length=50)
                 df['EMA200'] = ta.ema(df['Close'], length=200)
                 df['RSI'] = ta.rsi(df['Close'], length=14)
-                
+
+                # ข้อมูลล่าสุด
                 last = df.iloc[-1]
+                prev = df.iloc[-2]
                 price = last['Close']
-                ema200 = last['EMA200']
+                prev_close = prev['Close']
+
+                # คำนวณ % Change
+                change_val = price - prev_close
+                change_pct = (change_val / prev_close) * 100
                 
-                # --- แสดงผล Dashboard ---
+                # สถานะ EMA 200
+                ema200_val = last['EMA200']
+                diff_ema200_pct = ((price - ema200_val) / ema200_val) * 100
+                
+                # ==========================================================
+                # 🧠 SMART SUPPORT LOGIC (Logic เดียวกับที่คุณชอบ)
+                # ==========================================================
+                supports = []
+                trend_status = ""
+                
+                if price > last['EMA200']:
+                    # 🟢 ขาขึ้น: ใช้ EMA เป็นแนวรับ
+                    trend_status = "BULLISH (ขาขึ้น)"
+                    trend_color = "green"
+                    
+                    sup1 = (last['EMA20'], "EMA 20 - แนวรับซิ่ง")
+                    sup2 = (last['EMA50'], "EMA 50 - แนวรับหลัก")
+                    sup3 = (last['EMA200'], "EMA 200 - แนวรับสุดท้าย")
+                    
+                    # เรียงลำดับ
+                    raw_sups = sorted([sup1, sup2, sup3], key=lambda x: x[0], reverse=True)
+                    # กรองเฉพาะที่ต่ำกว่าราคาปัจจุบัน
+                    supports = [s for s in raw_sups if s[0] < price]
+
+                else:
+                    # 🔴 ขาลง: ใช้ฐานราคาเดิม (Low) เท่านั้น
+                    trend_status = "BEARISH (ขาลง)"
+                    trend_color = "red"
+                    
+                    recent_low = df['Low'].tail(60).min()
+                    year_low = df['Low'].tail(252).min()
+                    all_time_low = df['Low'].min()
+                    
+                    raw_sups = [
+                        (recent_low, "Swing Low ล่าสุด"),
+                        (year_low, "52-Week Low"),
+                        (all_time_low, "All-Time Low")
+                    ]
+                    
+                    # กรองเข้มงวด: ต้องต่ำกว่าราคาปัจจุบัน
+                    seen = set()
+                    for val, desc in raw_sups:
+                        if val < (price * 0.999) and val not in seen:
+                            supports.append((val, desc))
+                            seen.add(val)
+                    
+                    supports = sorted(supports, key=lambda x: x[0], reverse=True)
+
+                res_main = df['High'].tail(60).max()
+
+                # ==========================================================
+                # 📊 แสดงผล Dashboard (Streamlit UI)
+                # ==========================================================
+                
+                # 1. Header Metrics
                 col1, col2, col3 = st.columns(3)
-                col1.metric("ชื่อหุ้น", symbol_input)
-                col1.success("✅ ดึงข้อมูลสำเร็จ")
-                col2.metric("ราคาล่าสุด", f"{price:.2f}")
-                col3.metric("RSI", f"{last['RSI']:.2f}")
+                with col1:
+                    st.metric("ราคาล่าสุด", f"{price:.2f}", f"{change_val:.2f} ({change_pct:.2f}%)")
+                with col2:
+                    st.metric("RSI (14)", f"{last['RSI']:.2f}")
+                with col3:
+                    if price > last['EMA200']:
+                        st.success(f"📈 {trend_status}")
+                    else:
+                        st.error(f"📉 {trend_status}")
 
                 st.divider()
 
-                # กราฟ
-                st.line_chart(df.set_index('Date')['Close'])
-                
-                # Logic วิเคราะห์
+                # 2. Support & Resistance Section
                 c1, c2 = st.columns(2)
+                
                 with c1:
-                    st.subheader("🤖 วิเคราะห์เทรนด์")
-                    if pd.notna(ema200):
-                        if price > ema200:
-                            st.success(f"📈 **ขาขึ้น (Uptrend)**\nราคาอยู่เหนือเส้น 200 วัน ({ema200:.2f})")
-                        else:
-                            st.error(f"📉 **ขาลง (Downtrend)**\nราคาอยู่ต่ำกว่าเส้น 200 วัน ({ema200:.2f})")
-                    else:
-                        st.warning("ข้อมูลไม่พอคำนวณเส้น EMA 200")
+                    st.subheader("🚧 แนวต้าน (Resistance)")
+                    st.markdown(f"🔴 **{res_main:.2f}** (High เดิม)")
+                    if price < last['EMA200']:
+                        st.markdown(f"🔴 **{last['EMA200']:.2f}** (เส้น EMA 200)")
                 
                 with c2:
-                    st.subheader("💡 คำแนะนำ")
-                    if pd.notna(ema200):
-                        if price > ema200:
-                            st.info("หาจังหวะ **Buy on Dip** (ย่อซื้อ) ตามแนวรับ")
-                        else:
-                            st.warning("ควร **Wait & See** หรือหาจังหวะเด้งขาย (Sell on Rise)")
+                    st.subheader("🟢 แนวรับ (Smart Support)")
+                    if supports:
+                        for val, desc in supports[:3]:
+                            st.markdown(f"✅ **{val:.2f}** _{desc}_")
+                    else:
+                        st.warning("⚠️ **ไร้แนวรับ (New Low)**: ราคาหลุดทุกฐานในอดีต")
 
-                # ข้อมูลดิบ
-                with st.expander("ดูข้อมูลย้อนหลัง"):
-                    st.dataframe(df.tail())
-            else:
-                st.error("ข้อมูลมาไม่ครบ (ไม่มีราคา Close)")
+                st.divider()
+
+                # 3. AI Intelligent Report
+                st.subheader("🤖 AI Intelligent Report")
                 
+                # Technical Analysis
+                st.markdown("##### 🧠 1. บทวิเคราะห์ทางเทคนิค")
+                if price > last['EMA200']:
+                    if price < last['EMA50']:
+                        st.info("หุ้นเป็นขาขึ้นแต่พักตัวลึก (Correction) ราคากำลังทดสอบแนวรับสำคัญ")
+                    else:
+                        st.success("กระทิงดุ (Strong Bull) โมเมนตัมแข็งแกร่งมาก")
+                else:
+                    if last['RSI'] < 30:
+                        st.warning("ขาลงเต็มตัว แต่ Oversold มาก (ลุ้นเด้งสั้นๆ)")
+                    else:
+                        st.error("ขาลงสมบูรณ์แบบ (Bear Market) แรงขายยังกดดันต่อเนื่อง")
+
+                # Action Plan
+                st.markdown("##### ✅ 2. สรุปสิ่งที่ควรทำ (Action Plan)")
+                if price > last['EMA200']:
+                    if price < last['EMA50']:
+                        st.write("🟢 **Buy on Dip:** ทยอยสะสมไม้แรกที่แนวรับ EMA")
+                    else:
+                        st.write("🟡 **Let Profit Run:** ถือต่อ ใช้ EMA 20 บังทุน")
+                else:
+                    if last['RSI'] < 30:
+                        st.write(f"⚡ **Sniper Bounce:** รอซื้อเล่นเด้งที่ {supports[0][0] if supports else 'Low เดิม'} (Stop Loss เคร่งครัด)")
+                    elif price < last['EMA20']:
+                        st.write("⛔ **Wait & See:** นั่งทับมือ! รอให้ยืนเหนือ EMA 20 ให้ได้ก่อน")
+                    else:
+                        st.write("🟠 **Sell on Rise:** เด้งเพื่อขายลดพอร์ต")
+
+            else:
+                st.error(f"❌ ไม่พบข้อมูลหุ้น {symbol} กรุณาตรวจสอบชื่อหุ้น")
+        
         except Exception as e:
-            st.error(f"เกิดข้อผิดพลาดในการคำนวณ: {e}")
+            st.error(f"เกิดข้อผิดพลาด: {e}")
