@@ -1,83 +1,93 @@
 import streamlit as st
-from tvDatafeed import TvDatafeed, Interval
+import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
+import requests
 
 # --- 1. ตั้งค่าหน้าเว็บ ---
-st.set_page_config(page_title="TradingView AI", page_icon="📉", layout="wide")
-st.title("📉 TradingView AI: วิเคราะห์หุ้นไม่ง้อ Yahoo")
+st.set_page_config(page_title="Stock Anti-Block", page_icon="🛡️", layout="wide")
+st.title("🛡️ Stock AI: ระบบป้องกันการโดนบล็อก")
 
-# --- 2. ตั้งค่าการเชื่อมต่อ (Anonymous Mode) ---
-# การเชื่อมต่อแบบไม่ล็อกอิน (อาจมีดีเลย์ข้อมูลบ้างเล็กน้อย)
-tv = TvDatafeed()
+# --- 2. ฟังก์ชันปลอมตัว (Session Hack) ---
+def get_session():
+    session = requests.Session()
+    # ปลอมเป็น Chrome บน Windows เพื่อหลอก Yahoo
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5'
+    })
+    return session
 
-# --- 3. Sidebar ค้นหา ---
+# --- 3. Sidebar ---
 with st.sidebar:
-    st.header("🔍 ค้นหาหุ้น (TradingView)")
+    st.header("🔍 ค้นหาหุ้น")
+    symbol_input = st.text_input("ชื่อหุ้น (เช่น EOSE, TSLA, PTT.BK):", value="EOSE").upper().strip()
     
-    # ต้องเลือกตลาดให้ถูก ไม่งั้นหาไม่เจอ
-    exchange = st.selectbox("เลือกตลาด (Exchange):", 
-        ["NASDAQ (หุ้นเทคสหรัฐ)", "NYSE (หุ้นทั่วไปสหรัฐ)", "SET (หุ้นไทย)", "CRYPTO (เหรียญ)"], 
-        index=0
-    )
+    st.caption("เทคนิค: หากยัง Error ให้กดปุ่ม 'Reboot App' ในเมนูของ Streamlit")
     
-    # แปลงค่าเลือกเป็นรหัสตลาดที่ถูกต้อง
-    exch_map = {
-        "NASDAQ (หุ้นเทคสหรัฐ)": "NASDAQ",
-        "NYSE (หุ้นทั่วไปสหรัฐ)": "NYSE",
-        "SET (หุ้นไทย)": "SET",
-        "CRYPTO (เหรียญ)": "BINANCE"
-    }
-    selected_exchange = exch_map[exchange]
-    
-    symbol = st.text_input("ชื่อหุ้น (ไม่ต้องมี .BK):", value="EOSE").upper().strip()
-    
-    st.info(f"💡 กำลังค้นหา: **{symbol}** ในตลาด **{selected_exchange}**")
-    
-    run_btn = st.button("🚀 วิเคราะห์เลย")
+    # ปุ่มเริ่มทำงาน
+    run_btn = st.button("🚀 วิเคราะห์ (กดเลย)")
 
 # --- 4. เริ่มทำงาน ---
 if run_btn:
-    with st.spinner(f"กำลังดึงข้อมูลจาก TradingView..."):
+    with st.spinner(f"กำลังแอบดึงข้อมูล {symbol_input} ..."):
         try:
-            # ดึงข้อมูล (ย้อนหลัง 500 แท่ง)
-            df = tv.get_hist(symbol=symbol, exchange=selected_exchange, interval=Interval.in_daily, n_bars=500)
+            # ใช้ Session ที่ปลอมตัวแล้ว ส่งเข้าไปดึงข้อมูล
+            session = get_session()
             
+            # ดึงข้อมูลผ่าน Ticker โดยยัด Session เข้าไป (ถ้าทำได้)
+            ticker = yf.Ticker(symbol_input, session=session)
+            df = ticker.history(period="1y")
+            
+            # ถ้าวิธีแรกไม่มา ลองวิธี download แบบบ้านๆ แต่ใส่ session
+            if df.empty:
+                # yfinance เวอร์ชั่นใหม่บางทีรับ session โดยตรงไม่ได้ ต้องลอง download ปกติแต่ลุ้น IP
+                df = yf.download(symbol_input, period="1y", progress=False)
+
             if df is None or df.empty:
-                st.error(f"❌ ไม่พบข้อมูลหุ้น **{symbol}** ในตลาด **{selected_exchange}**")
-                st.warning("คำแนะนำ:\n1. ตรวจสอบชื่อหุ้น\n2. ท่านอาจเลือก 'ตลาด' ผิด (เช่น EOSE ต้องเลือก NASDAQ, PTT ต้องเลือก SET)")
+                st.error(f"❌ ยังคงไม่พบข้อมูล: {symbol_input}")
+                st.warning("สาเหตุ: IP ของ Server นี้อาจจะติด Blacklist ของ Yahoo ชั่วคราว")
+                st.info("💡 วิธีแก้: ให้กดปุ่ม 3 จุด (มุมขวาบน) -> Manage app -> Reboot app (เพื่อเปลี่ยนเครื่อง Server ใหม่)")
             else:
-                # --- จัดการข้อมูล ---
-                # tvDatafeed จะให้ชื่อคอลัมน์แปลกๆ เช่น 'symbol:close' ต้องแก้ชื่อ
-                df.columns = [col.split(":")[-1] for col in df.columns] # ตัดชื่อหน้าทิ้ง เอาแค่ close, open
-                df.columns = [col.capitalize() for col in df.columns]   # แปลงเป็น Close, Open
+                # --- จัดการข้อมูลให้สวยงาม ---
+                df = df.reset_index()
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = [c[0] for c in df.columns]
                 
-                # คำนวณ Indicator
-                df['EMA200'] = ta.ema(df['Close'], length=200)
-                df['RSI'] = ta.rsi(df['Close'], length=14)
+                # ตรวจสอบชื่อคอลัมน์
+                df.columns = [c.capitalize() for c in df.columns] # Close, Open, High, Low
                 
-                last = df.iloc[-1]
-                price = last['Close']
-                
-                # --- แสดงผล ---
-                c1, c2 = st.columns(2)
-                c1.metric("ราคาล่าสุด", f"{price:.2f}")
-                c2.metric("RSI", f"{last['RSI']:.2f}")
-                
-                # กราฟ
-                st.line_chart(df['Close'])
-                
-                # Logic ง่ายๆ
-                if pd.notna(last['EMA200']):
-                    if price > last['EMA200']:
-                        st.success(f"✅ ขาขึ้น (เหนือเส้น 200 วันที่ {last['EMA200']:.2f})")
-                    else:
-                        st.error(f"🔻 ขาลง (ต่ำกว่าเส้น 200 วันที่ {last['EMA200']:.2f})")
-                
-                # ดูข้อมูลดิบ
-                with st.expander("ดูข้อมูลดิบจาก TradingView"):
-                    st.dataframe(df.tail())
+                if 'Close' in df.columns:
+                    # คำนวณค่าต่างๆ
+                    last_price = df['Close'].iloc[-1]
+                    df['EMA200'] = ta.ema(df['Close'], length=200)
+                    df['RSI'] = ta.rsi(df['Close'], length=14)
+                    
+                    # --- แสดงผล ---
+                    st.success(f"✅ ดึงข้อมูลสำเร็จ! ({len(df)} วันทำการ)")
+                    
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("ชื่อหุ้น", symbol_input)
+                    c2.metric("ราคาล่าสุด", f"{last_price:.2f}")
+                    c3.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
+                    
+                    st.line_chart(df.set_index('Date')['Close'])
+                    
+                    # Logic ง่ายๆ
+                    ema200 = df['EMA200'].iloc[-1]
+                    if pd.notna(ema200):
+                        if last_price > ema200:
+                            st.info(f"📈 ขาขึ้น (ราคาอยู่เหนือเส้น 200 วันที่ {ema200:.2f})")
+                        else:
+                            st.error(f"📉 ขาลง (ราคาอยู่ต่ำกว่าเส้น 200 วันที่ {ema200:.2f})")
+                    
+                    with st.expander("ดูข้อมูลดิบ"):
+                        st.dataframe(df.tail())
+                else:
+                    st.error("ข้อมูลมาไม่ครบ (ขาดราคา Close)")
 
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาด: {e}")
-            st.write("ถ้า Error ว่า 'NoneType', แปลว่าหาชื่อหุ้นในตลาดนั้นไม่เจอครับ")
+            st.write("ลองกด Reboot App ดูนะครับ")
+            
