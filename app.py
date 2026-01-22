@@ -4,60 +4,69 @@ import pandas as pd
 import pandas_ta as ta
 
 # --- 1. ตั้งค่าหน้าเว็บ ---
-st.set_page_config(page_title="AI Expert Trader", page_icon="💎", layout="wide")
+st.set_page_config(page_title="AI Stock Analyst", page_icon="💎", layout="wide")
 
-# ปรับแต่ง CSS เพื่อลดขนาดหัวข้อและสร้างกรอบสีแดง
+# CSS: ปรับแต่งกรอบค้นหาและหัวข้อ
 st.markdown("""
     <style>
-    /* ลดขนาด Title และจัดให้อยู่ 2 บรรทัด */
-    .block-container h1 {
+    /* ปรับแต่ง Title */
+    h1 {
+        text-align: center;
         font-size: 2.5rem !important;
-        padding-top: 0rem !important;
-        line-height: 1.2 !important;
+        margin-bottom: 20px;
     }
     
-    /* สร้างกรอบสีแดงใน Sidebar เฉพาะส่วน Form */
+    /* กรอบแดงสำหรับช่องค้นหา (อยู่กลางหน้า) */
     div[data-testid="stForm"] {
         border: 2px solid red;
-        padding: 20px;
-        border-radius: 10px;
-        background-color: #f9f9f9;
+        padding: 30px;
+        border-radius: 15px;
+        background-color: #f8f9fa;
+        max-width: 700px;
+        margin: 0 auto; /* จัดกึ่งกลาง */
+    }
+    
+    /* ปรับปุ่มกดให้เต็มความกว้าง */
+    div[data-testid="stFormSubmitButton"] button {
+        width: 100%;
+        font-size: 1.2rem;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# ชื่อแอป 2 บรรทัด (ใช้ <br> ขึ้นบรรทัดใหม่)
-st.markdown("<h1>💎 AI Expert Trader<br><span style='font-size: 1.5rem; color: gray;'>ระบบวิเคราะห์หุ้นอัจฉริยะ</span></h1>", unsafe_allow_html=True)
+# --- 2. ส่วนหัวข้อและช่องค้นหา (อยู่หน้าเดียวกัน) ---
+st.markdown("<h1>Ai<br>ระบบวิเคราะห์หุ้นอัจฉริยะ</h1>", unsafe_allow_html=True)
 
-# --- 2. ฟังก์ชันดึงข้อมูล (Cached) ---
+st.write("") # เว้นบรรทัดนิดนึง
+
+# สร้าง Form ค้นหาไว้ตรงกลางหน้าจอ
+with st.form(key='search_form'):
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        symbol_input = st.text_input("ชื่อหุ้น (เช่น PTT.BK, TSLA, NVDA):", value="EOSE").upper().strip()
+    with c2:
+        timeframe = st.selectbox("Timeframe:", ["1d (เล่นสั้น)", "1wk (ถือยาว)"], index=0)
+        # แปลงค่ากลับเป็นรหัสที่ถูกต้อง
+        tf_code = "1wk" if "1wk" in timeframe else "1d"
+        
+    submit_btn = st.form_submit_button("🚀 วิเคราะห์หุ้นเดี๋ยวนี้")
+
+# --- 3. ฟังก์ชันดึงข้อมูล (Cached) ---
 @st.cache_data(ttl=3600, show_spinner=False)
-def get_stock_data(symbol, period="max", interval="1d"):
+def get_stock_data(symbol, interval):
     try:
         ticker = yf.Ticker(symbol)
-        df = ticker.history(period=period, interval=interval)
+        df = ticker.history(period="max", interval=interval)
         return df, ticker
-    except Exception as e:
+    except:
         return None, None
 
-# --- 3. Sidebar ค้นหา (มีกรอบแดง) ---
-with st.sidebar:
-    st.header("⚙️ ตั้งค่าการวิเคราะห์")
-    
-    # ใช้ Form เพื่อให้มีกรอบ (CSS จะจับที่ stForm นี้)
-    with st.form(key='search_form'):
-        st.markdown("### 🔍 ค้นหาหุ้น")
-        symbol_input = st.text_input("ชื่อหุ้น (เช่น PTT.BK, TSLA):", value="EOSE").upper().strip()
-        timeframe = st.selectbox("Timeframe:", ["1d", "1wk"], index=0)
-        run_btn = st.form_submit_button("🚀 วิเคราะห์เลย")
-    
-    st.caption("เทคนิค: 1d เล่นสั้น / 1wk ถือยาว")
-
-# --- 4. เริ่มทำงาน ---
-if run_btn:
-    with st.spinner(f"กำลังประมวลผลข้อมูล {symbol_input}..."):
+# --- 4. แสดงผลลัพธ์ (ต่อจากข้างล่างเลย) ---
+if submit_btn:
+    st.divider() # ขีดเส้นคั่น
+    with st.spinner(f"กำลังให้ AI วิเคราะห์ {symbol_input}..."):
         try:
-            # ดึงข้อมูล
-            df, ticker = get_stock_data(symbol_input, interval=timeframe)
+            df, ticker = get_stock_data(symbol_input, tf_code)
 
             if df is not None and not df.empty:
                 # แก้บั๊กหัวตาราง
@@ -68,8 +77,7 @@ if run_btn:
                 info = ticker.info
                 pe_ratio = info.get('trailingPE', 'N/A')
                 long_name = info.get('longName', symbol_input)
-                market_cap = info.get('marketCap', 'N/A')
-
+                
                 # คำนวณอินดิเคเตอร์
                 df['EMA20']  = ta.ema(df['Close'], length=20)
                 df['EMA50']  = ta.ema(df['Close'], length=50)
@@ -82,55 +90,64 @@ if run_btn:
                 change_val = price - prev['Close']
                 change_pct = (change_val / prev['Close']) * 100
                 
-                # --- แสดงผล Dashboard ---
+                # --- ส่วนแสดงผล Dashboard ---
                 
                 # Header ชื่อหุ้น
-                st.markdown(f"## 🏢 {long_name} ({symbol_input})")
+                st.markdown(f"<h2 style='text-align: center;'>🏢 {long_name} ({symbol_input})</h2>", unsafe_allow_html=True)
                 
-                # Metrics
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("ราคาล่าสุด", f"{price:.2f}", f"{change_val:.2f} ({change_pct:.2f}%)")
+                # Metrics (ราคา, RSI, PE)
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("ราคาล่าสุด", f"{price:.2f}", f"{change_val:.2f} ({change_pct:.2f}%)")
                 
-                # RSI พร้อมสี
                 rsi_val = last['RSI']
-                rsi_delta = "Overbought (แพง)" if rsi_val > 70 else "Oversold (ถูก)" if rsi_val < 30 else "Neutral"
-                rsi_color = "inverse" if rsi_val > 70 else "normal"
-                c2.metric("RSI (14)", f"{rsi_val:.2f}", delta=rsi_delta, delta_color=rsi_color)
+                rsi_delta = "Overbought" if rsi_val > 70 else "Oversold" if rsi_val < 30 else "Neutral"
+                m2.metric("RSI (14)", f"{rsi_val:.2f}", delta=rsi_delta, delta_color="inverse" if rsi_val > 70 else "normal")
                 
-                # PE Ratio
-                pe_fmt = f"{pe_ratio:.2f}" if isinstance(pe_ratio, (int, float)) else "N/A"
-                c3.metric("P/E Ratio", pe_fmt)
+                pe_show = f"{pe_ratio:.2f}" if isinstance(pe_ratio, (int, float)) else "N/A"
+                m3.metric("P/E Ratio", pe_show)
                 
-                # Trend Status
                 trend = "ขาขึ้น (Bullish)" if price > last['EMA200'] else "ขาลง (Bearish)"
-                c4.success(f"📈 {trend}") if price > last['EMA200'] else c4.error(f"📉 {trend}")
+                if price > last['EMA200']:
+                    m4.success(f"📈 {trend}")
+                else:
+                    m4.error(f"📉 {trend}")
 
-                st.divider()
+                st.write("") # เว้นบรรทัด
 
-                # --- กราฟและ AI Report ---
-                col_main, col_info = st.columns([2, 1])
+                # กราฟราคา
+                st.line_chart(df.tail(150)['Close'])
                 
-                with col_main:
-                    st.line_chart(df.tail(100)['Close']) # ดึงกราฟ 100 แท่งล่าสุดให้ดูง่าย
-                    
-                with col_info:
-                    st.subheader("🤖 AI Report")
+                # AI Analysis Box
+                st.subheader("🤖 ผลวิเคราะห์จาก AI")
+                
+                col_ai1, col_ai2 = st.columns(2)
+                with col_ai1:
                     if price > last['EMA200']:
-                        st.success("✅ **โครงสร้างขาขึ้น**\nราคาอยู่เหนือเส้น EMA 200")
-                        st.info("💡 **คำแนะนำ:**\nหาจังหวะย่อซื้อ (Buy on Dip) ตามแนวรับ EMA")
+                        st.success("✅ **โครงสร้างกราฟ: แข็งแกร่ง (Strong)**\nราคาอยู่เหนือเส้นค่าเฉลี่ย 200 วัน เป็นสัญญาณขาขึ้นระยะยาว")
                     else:
-                        st.error("🔻 **โครงสร้างขาลง**\nราคาอยู่ใต้เส้น EMA 200")
-                        st.warning("💡 **คำแนะนำ:**\nเด้งขาย (Sell on Rise) หรือรอจนกว่าจะยืนเหนือ EMA 200")
-                
-                # คำอธิบาย RSI (Expander)
-                with st.expander("ℹ️ ความหมายของค่า RSI"):
-                    st.write("""
-                    - **RSI > 70 (Overbought):** ซื้อมากเกินไป ระวังแรงขายทำกำไร (หุ้นอาจย่อ)
-                    - **RSI < 30 (Oversold):** ขายมากเกินไป ลุ้นเด้งรีบาวด์ (ของถูกเริ่มน่าสนใจ)
-                    - **RSI 50:** จุดกึ่งกลาง วัดพลังซื้อขาย
+                        st.error("🔻 **โครงสร้างกราฟ: อ่อนแอ (Weak)**\nราคาอยู่ใต้เส้นค่าเฉลี่ย 200 วัน เป็นสัญญาณขาลง ต้องระวัง")
+                        
+                with col_ai2:
+                    if price > last['EMA200']:
+                        if price < last['EMA50']:
+                            st.info("💡 **กลยุทธ์:** ราคาย่อตัวลงมา (Dip) เป็นโอกาสทยอยสะสม")
+                        else:
+                            st.info("💡 **กลยุทธ์:** ถือรันเทรนด์ (Let Profit Run) ใช้เส้น 20 วันบังทุน")
+                    else:
+                        if rsi_val < 30:
+                            st.warning("💡 **กลยุทธ์:** เล่นเด้งสั้นๆ (Rebound) ได้ แต่อย่าถือนาน")
+                        else:
+                            st.warning("💡 **กลยุทธ์:** ชะลอการลงทุน (Wait & See) รอให้กราฟฟื้นตัวก่อน")
+
+                # Expander ความรู้
+                with st.expander("📖 คู่มืออ่านค่า RSI (คลิกเพื่ออ่าน)"):
+                    st.markdown("""
+                    * **RSI > 70:** หุ้นแพง/แรงเกินไป ระวังโดนเทขาย (Overbought)
+                    * **RSI < 30:** หุ้นถูก/ลงแรงเกินไป ลุ้นเด้งกลับ (Oversold)
+                    * **RSI 50:** จุดวัดใจ ถ้าเกิน 50 คือแรงซื้อชนะ
                     """)
                     
             else:
-                st.error(f"❌ ไม่พบข้อมูลหุ้น {symbol_input} หรือตลาดปิด")
+                st.error(f"❌ ไม่พบข้อมูลหุ้นชื่อ {symbol_input} หรือตลาดปิดอยู่ครับ")
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาด: {e}")
