@@ -1,197 +1,131 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import pandas_ta as ta
+import numpy as np
 
-# =============================
+# =========================
 # PAGE CONFIG
-# =============================
+# =========================
 st.set_page_config(
-    page_title="AI Stock Master",
-    page_icon="💎",
+    page_title="💎 AI Stock Master",
     layout="wide"
 )
 
-# =============================
-# CSS
-# =============================
-st.markdown("""
-<style>
-.block-container { padding-top: 2rem; }
-h1 { text-align:center; }
-</style>
-""", unsafe_allow_html=True)
+st.title("💎 AI Stock Master")
 
-# =============================
-# HEADER
-# =============================
-st.markdown("<h1>💎 AI Stock Master</h1>", unsafe_allow_html=True)
-
-# =============================
+# =========================
 # INPUT
-# =============================
-c1, c2 = st.columns([3, 1])
-with c1:
-    symbol = st.text_input("ชื่อหุ้น", "EOSE").upper().strip()
-with c2:
-    tf = st.selectbox("Timeframe", ["1d", "1wk"])
+# =========================
+symbol = st.text_input("ชื่อหุ้น (เช่น AAPL, TSLA, EOSE)", "EOSE")
+timeframe = st.selectbox("Timeframe", ["1d", "1wk", "1mo"])
 
-# =============================
-# DATA FUNCTIONS
-# =============================
-@st.cache_data(ttl=1800)
-def load_price_data(symbol, tf):
+# =========================
+# DATA LOADER (SAFE)
+# =========================
+@st.cache_data
+def load_data(symbol, timeframe):
     ticker = yf.Ticker(symbol)
-    return ticker.history(period="2y", interval=tf)
+    df = ticker.history(period="6mo", interval=timeframe)
+    info = ticker.info
+    fast_info = ticker.fast_info
+    return df, info, fast_info
 
-def load_realtime(symbol):
-    ticker = yf.Ticker(symbol)
-    return ticker.fast_info, ticker.info
+if symbol:
+    df, info, fi = load_data(symbol, timeframe)
 
-# =============================
-# ANALYZE
-# =============================
-if st.button("🚀 วิเคราะห์"):
-    df = load_price_data(symbol, tf)
-    fi, info = load_realtime(symbol)
-
-    if df is None or df.empty:
-        st.error("❌ ไม่พบข้อมูลหุ้น")
+    if df.empty or len(df) < 50:
+        st.error("❌ ดึงข้อมูลไม่สำเร็จ หรือข้อมูลน้อยเกินไป")
         st.stop()
 
-    # =============================
-    # INDICATORS
-    # =============================
-    df["EMA20"] = ta.ema(df["Close"], 20)
-    df["EMA50"] = ta.ema(df["Close"], 50)
-    df["EMA200"] = ta.ema(df["Close"], 200)
-    df["RSI"] = ta.rsi(df["Close"], 14)
+    # =========================
+    # SAFE PRICE FETCH
+    # =========================
+    price = (
+        fi.get("last_price")
+        or info.get("regularMarketPrice")
+        or df["Close"].iloc[-1]
+    )
 
-    macd = ta.macd(df["Close"])
-    df = pd.concat([df, macd], axis=1)
-
-    last = df.iloc[-1]
-
-    # =============================
-    # PRICE DATA
-    # =============================
-    price = fi.get("last_price")
-    prev_close = fi.get("previous_close")
+    prev_close = (
+        fi.get("previous_close")
+        or info.get("regularMarketPreviousClose")
+        or df["Close"].iloc[-2]
+    )
 
     if price is None or prev_close is None:
-        st.error("❌ ไม่สามารถดึงราคาปัจจุบันได้")
+        st.error("❌ ไม่สามารถดึงราคาหุ้นได้")
         st.stop()
 
-    change = price - prev_close
-    pct = (change / prev_close) * 100
+    change_pct = (price - prev_close) / prev_close * 100
 
-    color = "green" if change >= 0 else "red"
-    arrow = "▲" if change >= 0 else "▼"
-    sign = "+" if change >= 0 else ""
+    # =========================
+    # INDICATORS
+    # =========================
+    # EMA
+    df["EMA50"] = df["Close"].ewm(span=50).mean()
+    df["EMA200"] = df["Close"].ewm(span=200).mean()
 
-    # =============================
-    # GOOGLE STYLE PRICE
-    # =============================
-    st.markdown(f"""
-    <div style="text-align:center">
-        <span style="font-size:3rem;font-weight:bold">{price:.2f}</span>
-        <span style="font-size:1.2rem"> USD</span>
-        <span style="color:{color};font-size:1.4rem">
-            {sign}{change:.2f} ({sign}{pct:.2f}%) {arrow} วันนี้
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
+    # RSI
+    delta = df["Close"].diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.rolling(14).mean()
+    avg_loss = loss.rolling(14).mean()
+    rs = avg_gain / avg_loss
+    df["RSI"] = 100 - (100 / (1 + rs))
 
-    # =============================
-    # PRE / POST MARKET
-    # =============================
-    pre = fi.get("pre_market_price")
-    post = fi.get("post_market_price")
+    # MACD
+    ema12 = df["Close"].ewm(span=12).mean()
+    ema26 = df["Close"].ewm(span=26).mean()
+    df["MACD"] = ema12 - ema26
+    df["Signal"] = df["MACD"].ewm(span=9).mean()
 
-    if pre:
-        diff = pre - prev_close
-        pct2 = (diff / prev_close) * 100
-        st.markdown(
-            f"<p style='text-align:center;color:gray'>ก่อนเปิดตลาด {pre:.2f} {diff:+.2f} ({pct2:+.2f}%)</p>",
-            unsafe_allow_html=True
-        )
-    elif post:
-        diff = post - price
-        pct2 = (diff / price) * 100
-        st.markdown(
-            f"<p style='text-align:center;color:gray'>หลังปิดตลาด {post:.2f} {diff:+.2f} ({pct2:+.2f}%)</p>",
-            unsafe_allow_html=True
-        )
-
-    st.divider()
-
-    # =============================
-    # AI SCORE
-    # =============================
+    # =========================
+    # SCORE SYSTEM
+    # =========================
     score = 0
-    reasons = []
+    max_score = 4
 
-    if price > last.EMA200:
-        score += 25
-        reasons.append("ยืนเหนือ EMA200")
+    if price > df["EMA50"].iloc[-1]:
+        score += 1
+    if price > df["EMA200"].iloc[-1]:
+        score += 1
+    if df["RSI"].iloc[-1] < 70:
+        score += 1
+    if df["MACD"].iloc[-1] > df["Signal"].iloc[-1]:
+        score += 1
 
-    if price > last.EMA50:
-        score += 20
-        reasons.append("ยืนเหนือ EMA50")
+    bullish_pct = score / max_score * 100
+    bearish_pct = 100 - bullish_pct
 
-    if last.RSI >= 40 and last.RSI <= 70:
-        score += 20
-        reasons.append("RSI แข็งแรง")
-
-    if last.MACD_12_26_9 > last.MACDs_12_26_9:
-        score += 20
-        reasons.append("MACD ตัดขึ้น")
-
-    if last.RSI < 30:
-        score += 15
-        reasons.append("Oversold")
-
-    score = min(score, 100)
-
-    # =============================
-    # ALERT
-    # =============================
-    if last.RSI > 70:
-        st.warning("⚠️ RSI > 70 : เริ่มร้อน")
-    if price < last.EMA200:
-        st.error("🚨 หลุด EMA200 : เทรนด์เสีย")
-
-    # =============================
+    # =========================
     # DISPLAY
-    # =============================
-    colA, colB = st.columns(2)
+    # =========================
+    col1, col2, col3 = st.columns(3)
 
-    with colA:
-        st.subheader("📊 AI Bullish Score")
-        st.metric("Score", f"{score}%")
-        for r in reasons:
-            st.write("•", r)
+    col1.metric("📌 ราคา", f"{price:.2f}")
+    col2.metric("📈 เปลี่ยนแปลง", f"{change_pct:.2f} %")
+    col3.metric("📊 Score", f"{bullish_pct:.0f}% Bullish")
 
-    with colB:
-        st.subheader("📉 Indicator")
-        st.write(f"RSI: {last.RSI:.2f}")
-        st.write(f"EMA20: {last.EMA20:.2f}")
-        st.write(f"EMA50: {last.EMA50:.2f}")
-        st.write(f"EMA200: {last.EMA200:.2f}")
-
-    # =============================
-    # WATCHLIST
-    # =============================
     st.divider()
-    st.subheader("⭐ Watchlist")
 
-    watchlist = ["EOSE", "TSLA", "NVDA", "AAPL"]
+    # =========================
+    # ALERTS
+    # =========================
+    if df["RSI"].iloc[-1] > 70:
+        st.warning("⚠ RSI > 70 (Overbought)")
 
-    rows = []
-    for s in watchlist:
-        t = yf.Ticker(s)
-        p = t.fast_info.get("last_price")
-        if p:
-            rows.append({"Symbol": s, "Price": round(p, 2)})
+    if price < df["EMA200"].iloc[-1]:
+        st.error("🚨 หลุด EMA200")
 
-    st.dataframe(pd.DataFrame(rows), use_container_width=True)
+    # =========================
+    # CHART
+    # =========================
+    st.subheader("📉 Price Chart")
+    st.line_chart(df[["Close", "EMA50", "EMA200"]])
+
+    st.subheader("📊 MACD")
+    st.line_chart(df[["MACD", "Signal"]])
+
+    st.subheader("📈 RSI")
+    st.line_chart(df["RSI"])
