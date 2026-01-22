@@ -9,12 +9,22 @@ st.set_page_config(page_title="AI Stock Master", page_icon="💎", layout="wide"
 # --- 2. CSS ปรับแต่งความสวยงาม (รองรับ Dark Mode) ---
 st.markdown("""
     <style>
-    /* จัด Title ให้อยู่ตรงกลาง และขยับขึ้นด้านบน */
+    /* [แก้ไข] 1. ลดระยะห่างด้านบน เพื่อดันชื่อแอปขึ้นไปข้างบน */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 0rem !important;
+    }
+
+    /* [แก้ไข] 2. ล็อคการเลื่อนหน้าจอ (Scroll) เป็นค่าเริ่มต้น */
+    div[data-testid="stAppViewContainer"] {
+        overflow: hidden !important;
+    }
+
+    /* จัด Title ให้อยู่ตรงกลาง */
     h1 {
         text-align: center;
         font-size: 2.8rem !important;
-        margin-bottom: 0px;
-        margin-top: 0px; /* [แก้ไข 1] ขยับขึ้นไปข้างบนนิดหน่อย */
+        margin-bottom: 10px;
     }
     
     /* กรอบค้นหาแบบใหม่ */
@@ -37,11 +47,9 @@ st.markdown("""
         padding: 15px 0;
     }
     
-    /* ปรับขนาดตัวหนังสือใน Metric (รวมถึง EMA) ให้เล็กลง */
-    div[data-testid="metric-container"] label { font-size: 1.0rem; } /* ปรับ label เล็กลงนิดนึง */
-    div[data-testid="metric-container"] div[data-testid="stMetricValue"] { 
-        font-size: 1.4rem; /* [แก้ไข 2] ปรับขนาดตัวเลขให้เล็กลงจาก 1.8rem */
-    }
+    /* ปรับขนาดตัวหนังสือใน Metric ให้ใหญ่ขึ้น */
+    div[data-testid="metric-container"] label { font-size: 1.1rem; }
+    div[data-testid="metric-container"] div[data-testid="stMetricValue"] { font-size: 1.8rem; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -154,6 +162,15 @@ def analyze_market_structure(price, ema20, ema50, ema200, rsi):
 
 # --- 7. ส่วนแสดงผล ---
 if submit_btn:
+    # [แก้ไข] 3. ปลดล็อคให้ Scroll ได้ เมื่อกดปุ่มและมีผลลัพธ์
+    st.markdown("""
+        <style>
+        div[data-testid="stAppViewContainer"] {
+            overflow: auto !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
     st.divider()
     with st.spinner(f"AI กำลังประมวลผล {symbol_input} ..."):
         df, info = get_data(symbol_input, tf_code)
@@ -173,6 +190,7 @@ if submit_btn:
 
             # --- เริ่มแสดงผล ---
             
+            # ปรับ Margin-top ติดลบ เพื่อให้ชื่อหุ้นขยับขึ้นไปด้านบนใกล้เส้น Divider
             st.markdown(f"<h2 style='text-align: center; margin-top: -15px; margin-bottom: 25px;'>🏢 {info['longName']} ({symbol_input})</h2>", unsafe_allow_html=True)
             
             # Row 1: ราคา
@@ -250,11 +268,12 @@ if submit_btn:
 
             st.write("") 
 
-            # แสดง EMA แทนกราฟ
+            # เอา Chart ออก แล้วใส่ EMA 20/50/200 แทน
             col_ema, col_ai = st.columns([1.5, 1.5])
             
             with col_ema:
                 st.subheader("📉 ค่าเส้นค่าเฉลี่ย (EMA)")
+                # สร้าง 3 คอลัมน์ย่อยเพื่อแสดงค่า EMA
                 e1, e2, e3 = st.columns(3)
                 with e1: st.metric("EMA 20", f"{ema20:.2f}")
                 with e2: st.metric("EMA 50", f"{ema50:.2f}")
