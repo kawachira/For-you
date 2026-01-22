@@ -36,7 +36,7 @@ with col_form:
         st.markdown("### 🔍 ค้นหาหุ้นที่ต้องการ")
         c1, c2 = st.columns([3, 1])
         with c1:
-            symbol_input = st.text_input("ชื่อหุ้น (เช่น PTT.BK, TSLA):", value="EOSE").upper().strip()
+            symbol_input = st.text_input("ชื่อหุ้น (เช่น AMZN,EOSE,RKLB, TSLA):", value="EOSE").upper().strip()
         with c2:
             timeframe = st.selectbox("Timeframe:", ["1h (รายชั่วโมง)", "1d (รายวัน)", "1wk (รายสัปดาห์)"], index=1)
             if "1wk" in timeframe: tf_code = "1wk"
