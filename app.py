@@ -170,11 +170,17 @@ if submit_btn:
                 </div>
                 """, unsafe_allow_html=True)
 
-                # Pre/Post Market
+                # Pre/Post Market (แก้ไขจุดบั๊กตรงนี้)
                 pre_p = info.get('preMarketPrice'); pre_c = info.get('preMarketChange'); pre_pc = info.get('preMarketChangePercent')
                 post_p = info.get('postMarketPrice'); post_c = info.get('postMarketChange'); post_pc = info.get('postMarketChangePercent')
-                if pre_pc and abs(pre_pc)<1: pre_pc*=100
-                if post_pc and abs(post_pc)<1: post_pc*=100
+                
+                # --- ส่วนที่แก้ไข: คำนวณ % สดใหม่เพื่อความแม่นยำ ---
+                if pre_p and reg_price and reg_price != 0:
+                     pre_pc = ((pre_p - reg_price) / reg_price) * 100
+                
+                if post_p and reg_price and reg_price != 0:
+                     post_pc = ((post_p - reg_price) / reg_price) * 100
+                # -----------------------------------------------
 
                 extra_html = ""
                 if pre_p and pre_c is not None:
