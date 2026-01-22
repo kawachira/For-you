@@ -150,8 +150,16 @@ if submit_btn:
             with c1:
                 reg_price = info.get('regularMarketPrice')
                 reg_chg = info.get('regularMarketChange')
-                reg_pct = info.get('regularMarketChangePercent')
-                if reg_pct and abs(reg_pct) < 1: reg_pct *= 100
+                # reg_pct = info.get('regularMarketChangePercent') # ของเดิมที่มีปัญหา
+                
+                # --- แก้ไขการคำนวณ % ราคาปัจจุบัน (คำนวณสดเพื่อความแม่นยำ) ---
+                if reg_price and reg_chg:
+                    prev_c = reg_price - reg_chg
+                    if prev_c != 0:
+                        reg_pct = (reg_chg / prev_c) * 100
+                    else: reg_pct = 0.0
+                else: reg_pct = 0.0
+                # --------------------------------------------------------
                 
                 color_text = "#16a34a" if reg_chg and reg_chg > 0 else "#dc2626"
                 bg_color = "#e8f5ec" if reg_chg and reg_chg > 0 else "#fee2e2"
@@ -174,7 +182,7 @@ if submit_btn:
                 pre_p = info.get('preMarketPrice'); pre_c = info.get('preMarketChange'); pre_pc = info.get('preMarketChangePercent')
                 post_p = info.get('postMarketPrice'); post_c = info.get('postMarketChange'); post_pc = info.get('postMarketChangePercent')
                 
-                # --- ส่วนที่แก้ไข: คำนวณ % สดใหม่เพื่อความแม่นยำ ---
+                # --- คำนวณ % Pre/Post Market สดใหม่ ---
                 if pre_p and reg_price and reg_price != 0:
                      pre_pc = ((pre_p - reg_price) / reg_price) * 100
                 
@@ -191,8 +199,11 @@ if submit_btn:
                 if extra_html:
                     st.markdown(f"<div style='font-size:14px; color:#6b7280; display:flex; gap: 15px; flex-wrap: wrap; margin-top: 5px;'>{extra_html}</div>", unsafe_allow_html=True)
 
-            # AI Status (แก้ไขตรงนี้ตามที่ขอ)
-            tf_label = "Time Frame Hour" if tf_code == "1h" else ("Time Frame Week" if tf_code == "1wk" else "Time Frame Day")
+            # AI Status (แก้ไขชื่อ Time Frame ตามที่ขอ)
+            if tf_code == "1h": tf_label = "TF Hour (รายชั่วโมง)"
+            elif tf_code == "1wk": tf_label = "TF Week (รายสัปดาห์)"
+            else: tf_label = "TF Day (รายวัน)"
+            
             if ai_color == "green": c2.success(f"📈 {ai_status}\n\n**{tf_label}**")
             elif ai_color == "red": c2.error(f"📉 {ai_status}\n\n**{tf_label}**")
             else: c2.warning(f"⚖️ {ai_status}\n\n**{tf_label}**")
