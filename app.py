@@ -13,8 +13,8 @@ st.markdown("""
     h1 {
         text-align: center;
         font-size: 2.8rem !important;
-        margin-bottom: 10px;
-        margin-top: -50px; /* [แก้ไข 1] ขยับขึ้นไปข้างบนนิดหน่อย */
+        margin-bottom: 0px;
+        margin-top: _10px; /* [แก้ไข 1] ขยับขึ้นไปข้างบนนิดหน่อย */
     }
     
     /* กรอบค้นหาแบบใหม่ */
