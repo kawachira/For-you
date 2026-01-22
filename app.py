@@ -6,7 +6,8 @@ import pandas_ta as ta
 # --- 1. ตั้งค่าหน้าเว็บ ---
 st.set_page_config(page_title="AI Expert Trader", page_icon="💎", layout="wide")
 
-st.title("💎 AIระบบวิเคราะห์หุ้นอัจฉริยะ")
+st.title("💎 AI ระบบวิเคราะห์หุ้นอัจฉริยะ")
+
 # --- 2. ช่องรับข้อมูล ---
 with st.sidebar:
     st.header("⚙️ ตั้งค่าการวิเคราะห์")
@@ -19,14 +20,23 @@ with st.sidebar:
 if run_btn:
     with st.spinner(f"กำลังประมวลผลข้อมูล {symbol} ({timeframe})..."):
         try:
-            # ดึงข้อมูล
+            # ใช้ yf.Ticker เพื่อดึงข้อมูลพื้นฐาน (เช่น PE Ratio)
+            ticker = yf.Ticker(symbol)
+            
+            # ดึงข้อมูลกราฟราคา
             period = "max"
-            df = yf.download(symbol, period=period, interval=timeframe, progress=False)
+            df = ticker.history(period=period, interval=timeframe)
 
             if len(df) > 0:
                 # แก้บั๊กหัวตาราง
                 if isinstance(df.columns, pd.MultiIndex):
                     df.columns = df.columns.get_level_values(0)
+
+                # ดึงข้อมูลพื้นฐาน (Fundamental Data)
+                info = ticker.info
+                pe_ratio = info.get('trailingPE', 'N/A') # ถ้าไม่มีข้อมูลให้โชว์ N/A
+                market_cap = info.get('marketCap', 'N/A')
+                long_name = info.get('longName', symbol)
 
                 # คำนวณอินดิเคเตอร์
                 df['EMA20']  = ta.ema(df['Close'], length=20)
@@ -39,6 +49,7 @@ if run_btn:
                 prev = df.iloc[-2]
                 price = last['Close']
                 prev_close = prev['Close']
+                rsi_val = last['RSI']
 
                 # คำนวณ % Change
                 change_val = price - prev_close
@@ -46,88 +57,73 @@ if run_btn:
                 
                 # สถานะ EMA 200
                 ema200_val = last['EMA200']
-                diff_ema200_pct = ((price - ema200_val) / ema200_val) * 100
                 
                 # ==========================================================
-                # 🧠 SMART SUPPORT LOGIC (Logic เดียวกับที่คุณชอบ)
+                # 🧠 SMART SUPPORT LOGIC
                 # ==========================================================
                 supports = []
                 trend_status = ""
                 
                 if price > last['EMA200']:
-                    # 🟢 ขาขึ้น: ใช้ EMA เป็นแนวรับ
                     trend_status = "BULLISH (ขาขึ้น)"
-                    trend_color = "green"
-                    
                     sup1 = (last['EMA20'], "EMA 20 - แนวรับซิ่ง")
                     sup2 = (last['EMA50'], "EMA 50 - แนวรับหลัก")
                     sup3 = (last['EMA200'], "EMA 200 - แนวรับสุดท้าย")
-                    
-                    # เรียงลำดับ
                     raw_sups = sorted([sup1, sup2, sup3], key=lambda x: x[0], reverse=True)
-                    # กรองเฉพาะที่ต่ำกว่าราคาปัจจุบัน
                     supports = [s for s in raw_sups if s[0] < price]
-
                 else:
-                    # 🔴 ขาลง: ใช้ฐานราคาเดิม (Low) เท่านั้น
                     trend_status = "BEARISH (ขาลง)"
-                    trend_color = "red"
-                    
                     recent_low = df['Low'].tail(60).min()
                     year_low = df['Low'].tail(252).min()
                     all_time_low = df['Low'].min()
-                    
-                    raw_sups = [
-                        (recent_low, "Swing Low ล่าสุด"),
-                        (year_low, "52-Week Low"),
-                        (all_time_low, "All-Time Low")
-                    ]
-                    
-                    # กรองเข้มงวด: ต้องต่ำกว่าราคาปัจจุบัน
+                    raw_sups = [(recent_low, "Swing Low ล่าสุด"), (year_low, "52-Week Low"), (all_time_low, "All-Time Low")]
                     seen = set()
                     for val, desc in raw_sups:
                         if val < (price * 0.999) and val not in seen:
-                            supports.append((val, desc))
-                            seen.add(val)
-                    
+                            supports.append((val, desc)); seen.add(val)
                     supports = sorted(supports, key=lambda x: x[0], reverse=True)
 
                 res_main = df['High'].tail(60).max()
 
                 # ==========================================================
-                # 📊 แสดงผล Dashboard (Streamlit UI)
+                # 📊 แสดงผล Dashboard
                 # ==========================================================
                 
-                # 1. Header Metrics
-                col1, col2, col3 = st.columns(3)
+                # --- ชื่อหุ้นและสถานะ ---
+                st.header(f"🏢 {long_name} ({symbol})")
+                
+                # 1. Key Metrics
+                col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.metric("ราคาล่าสุด", f"{price:.2f}", f"{change_val:.2f} ({change_pct:.2f}%)")
                 with col2:
-                    st.metric("RSI (14)", f"{last['RSI']:.2f}")
+                    # แสดงค่า RSI พร้อมสีบอกสถานะ
+                    rsi_color = "normal"
+                    if rsi_val > 70: rsi_status = "Overbought (แพงไป)"; rsi_color = "off"
+                    elif rsi_val < 30: rsi_status = "Oversold (ถูกไป)"; rsi_color = "normal"
+                    else: rsi_status = "Neutral (ปกติ)"
+                    st.metric("RSI (14)", f"{rsi_val:.2f}", delta=rsi_status, delta_color=rsi_color)
                 with col3:
-                    if price > last['EMA200']:
-                        st.success(f"📈 {trend_status}")
-                    else:
-                        st.error(f"📉 {trend_status}")
+                    # แสดงค่า P/E Ratio
+                    pe_display = f"{pe_ratio:.2f}" if isinstance(pe_ratio, (int, float)) else pe_ratio
+                    st.metric("P/E Ratio", pe_display)
+                with col4:
+                    if price > last['EMA200']: st.success(f"📈 {trend_status}")
+                    else: st.error(f"📉 {trend_status}")
 
                 st.divider()
 
                 # 2. Support & Resistance Section
                 c1, c2 = st.columns(2)
-                
                 with c1:
                     st.subheader("🚧 แนวต้าน (Resistance)")
                     st.markdown(f"🔴 **{res_main:.2f}** (High เดิม)")
-                    if price < last['EMA200']:
-                        st.markdown(f"🔴 **{last['EMA200']:.2f}** (เส้น EMA 200)")
-                
+                    if price < last['EMA200']: st.markdown(f"🔴 **{last['EMA200']:.2f}** (เส้น EMA 200)")
                 with c2:
                     st.subheader("🟢 แนวรับ (Smart Support)")
                     if supports:
-                        for val, desc in supports[:3]:
-                            st.markdown(f"✅ **{val:.2f}** _{desc}_")
-                    else:
-                        st.warning("⚠️ **ไร้แนวรับ (New Low)**: ราคาหลุดทุกฐานในอดีต")
+                        for val, desc in supports[:3]: st.markdown(f"✅ **{val:.2f}** _{desc}_")
+                    else: st.warning("⚠️ **ไร้แนวรับ (New Low)**")
 
                 st.divider()
 
@@ -137,33 +133,36 @@ if run_btn:
                 # Technical Analysis
                 st.markdown("##### 🧠 1. บทวิเคราะห์ทางเทคนิค")
                 if price > last['EMA200']:
-                    if price < last['EMA50']:
-                        st.info("หุ้นเป็นขาขึ้นแต่พักตัวลึก (Correction) ราคากำลังทดสอบแนวรับสำคัญ")
-                    else:
-                        st.success("กระทิงดุ (Strong Bull) โมเมนตัมแข็งแกร่งมาก")
+                    if price < last['EMA50']: st.info("หุ้นเป็นขาขึ้นแต่พักตัวลึก (Correction) ราคากำลังทดสอบแนวรับสำคัญ")
+                    else: st.success("กระทิงดุ (Strong Bull) โมเมนตัมแข็งแกร่งมาก")
                 else:
-                    if last['RSI'] < 30:
-                        st.warning("ขาลงเต็มตัว แต่ Oversold มาก (ลุ้นเด้งสั้นๆ)")
-                    else:
-                        st.error("ขาลงสมบูรณ์แบบ (Bear Market) แรงขายยังกดดันต่อเนื่อง")
+                    if last['RSI'] < 30: st.warning("ขาลงเต็มตัว แต่ Oversold มาก (ลุ้นเด้งสั้นๆ)")
+                    else: st.error("ขาลงสมบูรณ์แบบ (Bear Market) แรงขายยังกดดันต่อเนื่อง")
+
+                # RSI Explanation (New!)
+                with st.expander("ℹ️ อ่านค่า RSI อย่างไรให้แม่นยำ?"):
+                    st.markdown("""
+                    **Relative Strength Index (RSI)** คือดัชนีวัดความแข็งแกร่งของราคา:
+                    * 🔴 **RSI > 70 (Overbought):** ราคาขึ้นมาแรงเกินไป มีโอกาสสูงที่จะ **'ย่อตัว'** หรือ **'พักฐาน'** (ระวังการไล่ราคา)
+                    * 🟢 **RSI < 30 (Oversold):** ราคาลงมาแรงเกินไป มีโอกาสสูงที่จะ **'เด้งกลับ'** (Rebound) (เป็นจังหวะจับตามอง)
+                    * 🔵 **RSI 30-70:** ราคาเคลื่อนไหวในเกณฑ์ปกติ
+                        * *RSI > 50:* โมเมนตัมฝั่งซื้อได้เปรียบ
+                        * *RSI < 50:* โมเมนตัมฝั่งขายได้เปรียบ
+                    """)
 
                 # Action Plan
                 st.markdown("##### ✅ 2. สรุปสิ่งที่ควรทำ (Action Plan)")
                 if price > last['EMA200']:
-                    if price < last['EMA50']:
-                        st.write("🟢 **Buy on Dip:** ทยอยสะสมไม้แรกที่แนวรับ EMA")
-                    else:
-                        st.write("🟡 **Let Profit Run:** ถือต่อ ใช้ EMA 20 บังทุน")
+                    if price < last['EMA50']: st.write("🟢 **Buy on Dip:** ทยอยสะสมไม้แรกที่แนวรับ EMA")
+                    else: st.write("🟡 **Let Profit Run:** ถือต่อ ใช้ EMA 20 บังทุน")
                 else:
-                    if last['RSI'] < 30:
-                        st.write(f"⚡ **Sniper Bounce:** รอซื้อเล่นเด้งที่ {supports[0][0] if supports else 'Low เดิม'} (Stop Loss เคร่งครัด)")
-                    elif price < last['EMA20']:
-                        st.write("⛔ **Wait & See:** นั่งทับมือ! รอให้ยืนเหนือ EMA 20 ให้ได้ก่อน")
-                    else:
-                        st.write("🟠 **Sell on Rise:** เด้งเพื่อขายลดพอร์ต")
+                    if last['RSI'] < 30: st.write(f"⚡ **Sniper Bounce:** รอซื้อเล่นเด้งที่ {supports[0][0] if supports else 'Low เดิม'}")
+                    elif price < last['EMA20']: st.write("⛔ **Wait & See:** นั่งทับมือ! รอให้ยืนเหนือ EMA 20 ให้ได้ก่อน")
+                    else: st.write("🟠 **Sell on Rise:** เด้งเพื่อขายลดพอร์ต")
 
             else:
                 st.error(f"❌ ไม่พบข้อมูลหุ้น {symbol} กรุณาตรวจสอบชื่อหุ้น")
         
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาด: {e}")
+
