@@ -170,7 +170,7 @@ if submit_btn:
                 </div>
                 """, unsafe_allow_html=True)
 
-                # Pre/Post Market (แก้ไขจุดบั๊กตรงนี้)
+                # Pre/Post Market
                 pre_p = info.get('preMarketPrice'); pre_c = info.get('preMarketChange'); pre_pc = info.get('preMarketChangePercent')
                 post_p = info.get('postMarketPrice'); post_c = info.get('postMarketChange'); post_pc = info.get('postMarketChangePercent')
                 
@@ -191,8 +191,8 @@ if submit_btn:
                 if extra_html:
                     st.markdown(f"<div style='font-size:14px; color:#6b7280; display:flex; gap: 15px; flex-wrap: wrap; margin-top: 5px;'>{extra_html}</div>", unsafe_allow_html=True)
 
-            # AI Status
-            tf_label = "TF 1 Hour" if tf_code == "1h" else ("TF Week" if tf_code == "1wk" else "TF Day")
+            # AI Status (แก้ไขตรงนี้ตามที่ขอ)
+            tf_label = "Time Frame Hour" if tf_code == "1h" else ("Time Frame Week" if tf_code == "1wk" else "Time Frame Day")
             if ai_color == "green": c2.success(f"📈 {ai_status}\n\n**{tf_label}**")
             elif ai_color == "red": c2.error(f"📉 {ai_status}\n\n**{tf_label}**")
             else: c2.warning(f"⚖️ {ai_status}\n\n**{tf_label}**")
