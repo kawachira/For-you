@@ -2,12 +2,15 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
-from datetime import datetime
 
 # =============================
 # PAGE CONFIG
 # =============================
-st.set_page_config(page_title="AI Stock Master", page_icon="💎", layout="wide")
+st.set_page_config(
+    page_title="AI Stock Master",
+    page_icon="💎",
+    layout="wide"
+)
 
 # =============================
 # CSS
@@ -27,50 +30,57 @@ st.markdown("<h1>💎 AI Stock Master</h1>", unsafe_allow_html=True)
 # =============================
 # INPUT
 # =============================
-col1, col2 = st.columns([3,1])
-with col1:
-    symbol = st.text_input("ชื่อหุ้น", "EOSE").upper()
-with col2:
-    tf = st.selectbox("Timeframe", ["1d","1wk"])
+c1, c2 = st.columns([3, 1])
+with c1:
+    symbol = st.text_input("ชื่อหุ้น", "EOSE").upper().strip()
+with c2:
+    tf = st.selectbox("Timeframe", ["1d", "1wk"])
 
 # =============================
-# DATA
+# DATA FUNCTIONS
 # =============================
 @st.cache_data(ttl=1800)
-def load_data(symbol, tf):
-    t = yf.Ticker(symbol)
-    df = t.history(period="2y", interval=tf)
+def load_price_data(symbol, tf):
+    ticker = yf.Ticker(symbol)
+    return ticker.history(period="2y", interval=tf)
 
-    fi = t.fast_info
-    info = t.info
-
-    return df, fi, info
+def load_realtime(symbol):
+    ticker = yf.Ticker(symbol)
+    return ticker.fast_info, ticker.info
 
 # =============================
 # ANALYZE
 # =============================
 if st.button("🚀 วิเคราะห์"):
-    df, fi, info = load_data(symbol, tf)
+    df = load_price_data(symbol, tf)
+    fi, info = load_realtime(symbol)
 
-    if df.empty:
-        st.error("ไม่พบข้อมูล")
+    if df is None or df.empty:
+        st.error("❌ ไม่พบข้อมูลหุ้น")
         st.stop()
 
-    # -------------------------
+    # =============================
     # INDICATORS
-    # -------------------------
+    # =============================
     df["EMA20"] = ta.ema(df["Close"], 20)
     df["EMA50"] = ta.ema(df["Close"], 50)
     df["EMA200"] = ta.ema(df["Close"], 200)
     df["RSI"] = ta.rsi(df["Close"], 14)
+
     macd = ta.macd(df["Close"])
     df = pd.concat([df, macd], axis=1)
 
-    # -------------------------
+    last = df.iloc[-1]
+
+    # =============================
     # PRICE DATA
-    # -------------------------
-    price = fi.last_price
-    prev_close = fi.previous_close
+    # =============================
+    price = fi.get("last_price")
+    prev_close = fi.get("previous_close")
+
+    if price is None or prev_close is None:
+        st.error("❌ ไม่สามารถดึงราคาปัจจุบันได้")
+        st.stop()
 
     change = price - prev_close
     pct = (change / prev_close) * 100
@@ -80,7 +90,7 @@ if st.button("🚀 วิเคราะห์"):
     sign = "+" if change >= 0 else ""
 
     # =============================
-    # PRICE DISPLAY (เหมือน Google)
+    # GOOGLE STYLE PRICE
     # =============================
     st.markdown(f"""
     <div style="text-align:center">
@@ -92,42 +102,54 @@ if st.button("🚀 วิเคราะห์"):
     </div>
     """, unsafe_allow_html=True)
 
-    # -------------------------
+    # =============================
     # PRE / POST MARKET
-    # -------------------------
-    market_text = ""
-    if fi.pre_market_price:
-        pm = fi.pre_market_price - prev_close
-        pm_pct = (pm / prev_close) * 100
-        market_text = f"ก่อนเปิดตลาด {fi.pre_market_price:.2f} {pm:+.2f} ({pm_pct:+.2f}%)"
-    elif fi.post_market_price:
-        pm = fi.post_market_price - price
-        pm_pct = (pm / price) * 100
-        market_text = f"หลังปิดตลาด {fi.post_market_price:.2f} {pm:+.2f} ({pm_pct:+.2f}%)"
+    # =============================
+    pre = fi.get("pre_market_price")
+    post = fi.get("post_market_price")
 
-    if market_text:
-        st.markdown(f"<p style='text-align:center;color:gray'>{market_text}</p>", unsafe_allow_html=True)
+    if pre:
+        diff = pre - prev_close
+        pct2 = (diff / prev_close) * 100
+        st.markdown(
+            f"<p style='text-align:center;color:gray'>ก่อนเปิดตลาด {pre:.2f} {diff:+.2f} ({pct2:+.2f}%)</p>",
+            unsafe_allow_html=True
+        )
+    elif post:
+        diff = post - price
+        pct2 = (diff / price) * 100
+        st.markdown(
+            f"<p style='text-align:center;color:gray'>หลังปิดตลาด {post:.2f} {diff:+.2f} ({pct2:+.2f}%)</p>",
+            unsafe_allow_html=True
+        )
 
     st.divider()
 
     # =============================
-    # SCORE SYSTEM
+    # AI SCORE
     # =============================
     score = 0
     reasons = []
 
-    last = df.iloc[-1]
-
     if price > last.EMA200:
-        score += 25; reasons.append("ยืนเหนือ EMA200")
-    if last.RSI < 70 and last.RSI > 40:
-        score += 20; reasons.append("RSI แข็งแรง")
-    if last.MACD_12_26_9 > last.MACDs_12_26_9:
-        score += 20; reasons.append("MACD ตัดขึ้น")
+        score += 25
+        reasons.append("ยืนเหนือ EMA200")
+
     if price > last.EMA50:
-        score += 20; reasons.append("ยืนเหนือ EMA50")
+        score += 20
+        reasons.append("ยืนเหนือ EMA50")
+
+    if last.RSI >= 40 and last.RSI <= 70:
+        score += 20
+        reasons.append("RSI แข็งแรง")
+
+    if last.MACD_12_26_9 > last.MACDs_12_26_9:
+        score += 20
+        reasons.append("MACD ตัดขึ้น")
+
     if last.RSI < 30:
-        score += 15; reasons.append("Oversold")
+        score += 15
+        reasons.append("Oversold")
 
     score = min(score, 100)
 
@@ -145,28 +167,31 @@ if st.button("🚀 วิเคราะห์"):
     colA, colB = st.columns(2)
 
     with colA:
-        st.subheader("📊 AI Score")
-        st.metric("Bullish Score", f"{score}%")
+        st.subheader("📊 AI Bullish Score")
+        st.metric("Score", f"{score}%")
         for r in reasons:
             st.write("•", r)
 
     with colB:
         st.subheader("📉 Indicator")
         st.write(f"RSI: {last.RSI:.2f}")
-        st.write(f"EMA20 / 50 / 200")
-        st.write(f"{last.EMA20:.2f} / {last.EMA50:.2f} / {last.EMA200:.2f}")
+        st.write(f"EMA20: {last.EMA20:.2f}")
+        st.write(f"EMA50: {last.EMA50:.2f}")
+        st.write(f"EMA200: {last.EMA200:.2f}")
 
     # =============================
     # WATCHLIST
     # =============================
     st.divider()
-    st.subheader("⭐ Watchlist (ตัวอย่าง)")
-    watchlist = ["EOSE","TSLA","NVDA","AAPL"]
+    st.subheader("⭐ Watchlist")
 
-    wl_data = []
+    watchlist = ["EOSE", "TSLA", "NVDA", "AAPL"]
+
+    rows = []
     for s in watchlist:
         t = yf.Ticker(s)
-        p = t.fast_info.last_price
-        wl_data.append({"Symbol":s,"Price":p})
+        p = t.fast_info.get("last_price")
+        if p:
+            rows.append({"Symbol": s, "Price": round(p, 2)})
 
-    st.dataframe(pd.DataFrame(wl_data))
+    st.dataframe(pd.DataFrame(rows), use_container_width=True)
