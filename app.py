@@ -64,7 +64,6 @@ with col_form:
 
 # --- 4. ฟังก์ชันช่วยแปลความหมาย & Helper Functions ---
 
-# (เพิ่มเข้ามาใหม่) ฟังก์ชันสร้างลูกศร
 def arrow_html(change):
     if change is None: return ""
     if change > 0:
@@ -91,13 +90,12 @@ def get_pe_interpretation(pe):
     return "🟠 **หุ้นแพง (High P/E):** ราคาสูง หรือตลาดคาดหวังการเติบโตสูงมาก (Growth Stock)"
 
 # --- 5. ฟังก์ชันดึงข้อมูล (Cache) ---
-@st.cache_data(ttl=60, show_spinner=False) # ลดเวลา Cache เพื่อให้ราคา Realtime ขึ้น
+@st.cache_data(ttl=60, show_spinner=False)
 def get_data(symbol, interval):
     try:
         ticker = yf.Ticker(symbol)
         df = ticker.history(period="2y", interval=interval)
         
-        # (อัปเดตใหม่) ดึงข้อมูลราคา Realtime และ Pre/Post Market
         stock_info = {
             'longName': ticker.info.get('longName', symbol),
             'trailingPE': ticker.info.get('trailingPE', 'N/A'),
@@ -115,7 +113,6 @@ def get_data(symbol, interval):
             'postMarketChangePercent': ticker.info.get('postMarketChangePercent'),
         }
         
-        # Fallback กรณี yfinance ไม่ส่งข้อมูล regularMarketPrice (ใช้ Close ล่าสุดแทน)
         if stock_info['regularMarketPrice'] is None and not df.empty:
              stock_info['regularMarketPrice'] = df['Close'].iloc[-1]
              stock_info['regularMarketChange'] = df['Close'].iloc[-1] - df['Close'].iloc[-2]
@@ -128,7 +125,7 @@ def get_data(symbol, interval):
 # --- 6. ฟังก์ชันสมอง AI ---
 def analyze_market_structure(price, ema20, ema50, ema200, rsi):
     status, color, advice = "", "", ""
-    if price > ema200: # โซนขาขึ้น
+    if price > ema200:
         if price > ema20 and price > ema50:
             status, color = "Strong Uptrend (ขาขึ้นแข็งแกร่ง)", "green"
             advice = "🟢 **Let Profit Run:** ถือต่อไป ใช้ EMA20 เป็นจุดล็อคกำไร"
@@ -139,7 +136,7 @@ def analyze_market_structure(price, ema20, ema50, ema200, rsi):
         else:
             status, color = "Uptrend (ขาขึ้นปกติ)", "green"
             advice = "🟢 **Hold:** ถือหุ้นต่อ แนวโน้มยังดี"
-    else: # โซนขาลง
+    else:
         if price < ema20 and price < ema50:
             status, color = "Strong Downtrend (ขาลงรุนแรง)", "red"
             advice = "🔴 **Avoid/Sell:** ห้ามรับมีด! แรงขายเชี่ยว รอสร้างฐานก่อน"
@@ -155,7 +152,7 @@ def analyze_market_structure(price, ema20, ema50, ema200, rsi):
 # --- 7. ส่วนแสดงผล ---
 if submit_btn:
     st.divider()
-    with st.spinner(f"AI กำลังประมวลผลกราฟ {symbol_input} ..."):
+    with st.spinner(f"AI กำลังประมวลผล {symbol_input} ..."):
         df, info = get_data(symbol_input, tf_code)
 
         if df is not None and not df.empty and len(df) > 200:
@@ -164,10 +161,7 @@ if submit_btn:
             df['EMA200'] = ta.ema(df['Close'], length=200); df['RSI'] = ta.rsi(df['Close'], length=14)
             
             last = df.iloc[-1]; prev = df.iloc[-2]
-            
-            # ใช้ราคาจาก info (Realtime) เป็นหลัก ถ้าไม่มีให้ใช้จาก df
             price = info['regularMarketPrice'] if info['regularMarketPrice'] else last['Close']
-            
             rsi = last['RSI']
             ema20=last['EMA20']; ema50=last['EMA50']; ema200=last['EMA200']
 
@@ -175,25 +169,22 @@ if submit_btn:
             ai_status, ai_color, ai_advice = analyze_market_structure(price, ema20, ema50, ema200, rsi)
 
             # --- เริ่มแสดงผล ---
-            st.markdown(f"<h2 style='text-align: center; margin-bottom: 25px;'>🏢 {info['longName']} ({symbol_input})</h2>", unsafe_allow_html=True)
             
-            # Row 1: ราคา (ใช้โค้ดใหม่ HTML) และ สถานะ AI
+            # [แก้ไข] ปรับ Margin-top ติดลบ เพื่อให้ชื่อหุ้นขยับขึ้นไปด้านบนใกล้เส้น Divider
+            st.markdown(f"<h2 style='text-align: center; margin-top: -15px; margin-bottom: 25px;'>🏢 {info['longName']} ({symbol_input})</h2>", unsafe_allow_html=True)
+            
+            # Row 1: ราคา
             c1, c2 = st.columns(2)
             
-            # --- ส่วนที่เพิ่ม/แก้ไข: การแสดงผลราคาแบบใหม่ ---
             with c1:
-                # ดึงตัวแปรราคา
                 reg_price = info.get('regularMarketPrice')
                 reg_chg = info.get('regularMarketChange')
                 reg_pct = info.get('regularMarketChangePercent')
-                # แปลง % หากเป็นทศนิยม
                 if reg_pct and abs(reg_pct) < 1: reg_pct *= 100
                 
-                # กำหนดสี
                 color_text = "#16a34a" if reg_chg and reg_chg > 0 else "#dc2626"
                 bg_color = "#e8f5ec" if reg_chg and reg_chg > 0 else "#fee2e2"
                 
-                # HTML ราคาหลัก
                 st.markdown(f"""
                 <div style="margin-bottom:10px;">
                   <div style="font-size:40px;font-weight:600;">
@@ -211,7 +202,6 @@ if submit_btn:
                 </div>
                 """, unsafe_allow_html=True)
 
-                # HTML Pre/Post Market
                 pre_price = info.get('preMarketPrice')
                 pre_chg = info.get('preMarketChange')
                 pre_pct = info.get('preMarketChangePercent')
@@ -239,13 +229,12 @@ if submit_btn:
                             {arrow_html(post_chg)} {post_chg:+.2f} ({post_pct:+.2f}%)
                         </span>
                     </div>""", unsafe_allow_html=True)
-            # ---------------------------------------------------
 
             if ai_color == "green": c2.success(f"📈 {ai_status}")
             elif ai_color == "red": c2.error(f"📉 {ai_status}")
             else: c2.warning(f"⚖️ {ai_status}")
 
-            # Row 2: P/E และ RSI พร้อมคำอธิบายละเอียด (เหมือนเดิม)
+            # Row 2: P/E และ RSI
             c3, c4 = st.columns(2)
             with c3:
                 pe_val = info['trailingPE']
@@ -257,13 +246,19 @@ if submit_btn:
                 st.metric("⚡ RSI (14)", f"{rsi:.2f}", rsi_txt, delta_color="inverse" if rsi>70 else "normal")
                 st.caption(get_rsi_interpretation(rsi))
 
-            st.write("") # เว้นบรรทัด
+            st.write("") 
 
-            # Chart & AI Report (เหมือนเดิม)
-            col_chart, col_ai = st.columns([1.8, 1.2])
-            with col_chart:
-                st.subheader("📈 กราฟราคา (Trend)")
-                st.line_chart(df.tail(150)['Close'])
+            # [แก้ไข] เอา Chart ออก แล้วใส่ EMA 20/50/200 แทน
+            col_ema, col_ai = st.columns([1.5, 1.5])
+            
+            with col_ema:
+                st.subheader("📉 ค่าเส้นค่าเฉลี่ย (EMA)")
+                # สร้าง 3 คอลัมน์ย่อยเพื่อแสดงค่า EMA
+                e1, e2, e3 = st.columns(3)
+                with e1: st.metric("EMA 20", f"{ema20:.2f}")
+                with e2: st.metric("EMA 50", f"{ema50:.2f}")
+                with e3: st.metric("EMA 200", f"{ema200:.2f}")
+                
             with col_ai:
                 st.subheader("🤖 บทวิเคราะห์ AI")
                 with st.chat_message("assistant"):
@@ -271,7 +266,7 @@ if submit_btn:
                     st.divider()
                     st.markdown(f"**🔍 ปัจจัยทางเทคนิค:**\n- EMA200: {'✅ ยืนเหนือ' if price>ema200 else '❌ หลุดต่ำกว่า'} ({ema200:.2f})\n- RSI: {rsi:.2f} ({rsi_txt})")
 
-            # Support & Resistance (เหมือนเดิม)
+            # Support & Resistance
             st.subheader("🚧 แผนการเทรด (Support & Resistance)")
             supports, resistances = [], []
             res_val = df['High'].tail(60).max(); resistances.append((res_val, "High เดิม (60 วัน)"))
