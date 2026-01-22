@@ -6,9 +6,7 @@ import pandas_ta as ta
 # --- 1. ตั้งค่าหน้าเว็บ ---
 st.set_page_config(page_title="AI Expert Trader", page_icon="💎", layout="wide")
 
-st.title("💎 AI Expert Trader: ระบบวิเคราะห์หุ้นอัจฉริยะ")
-st.markdown("**(Smart Logic: Strict Support & Resistance Filter)**")
-
+st.title("💎 AIระบบวิเคราะห์หุ้นอัจฉริยะ")
 # --- 2. ช่องรับข้อมูล ---
 with st.sidebar:
     st.header("⚙️ ตั้งค่าการวิเคราะห์")
