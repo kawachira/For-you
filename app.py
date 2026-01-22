@@ -9,11 +9,12 @@ st.set_page_config(page_title="AI Stock Master", page_icon="💎", layout="wide"
 # --- 2. CSS ปรับแต่งความสวยงาม (รองรับ Dark Mode) ---
 st.markdown("""
     <style>
-    /* จัด Title ให้อยู่ตรงกลาง */
+    /* จัด Title ให้อยู่ตรงกลาง และขยับขึ้นด้านบน */
     h1 {
         text-align: center;
         font-size: 2.8rem !important;
         margin-bottom: 10px;
+        margin-top: -20px; /* [แก้ไข 1] ขยับขึ้นไปข้างบนนิดหน่อย */
     }
     
     /* กรอบค้นหาแบบใหม่ */
@@ -36,9 +37,11 @@ st.markdown("""
         padding: 15px 0;
     }
     
-    /* ปรับขนาดตัวหนังสือใน Metric ให้ใหญ่ขึ้น */
-    div[data-testid="metric-container"] label { font-size: 1.1rem; }
-    div[data-testid="metric-container"] div[data-testid="stMetricValue"] { font-size: 1.8rem; }
+    /* ปรับขนาดตัวหนังสือใน Metric (รวมถึง EMA) ให้เล็กลง */
+    div[data-testid="metric-container"] label { font-size: 1.0rem; } /* ปรับ label เล็กลงนิดนึง */
+    div[data-testid="metric-container"] div[data-testid="stMetricValue"] { 
+        font-size: 1.4rem; /* [แก้ไข 2] ปรับขนาดตัวเลขให้เล็กลงจาก 1.8rem */
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -170,7 +173,6 @@ if submit_btn:
 
             # --- เริ่มแสดงผล ---
             
-            # [แก้ไข] ปรับ Margin-top ติดลบ เพื่อให้ชื่อหุ้นขยับขึ้นไปด้านบนใกล้เส้น Divider
             st.markdown(f"<h2 style='text-align: center; margin-top: -15px; margin-bottom: 25px;'>🏢 {info['longName']} ({symbol_input})</h2>", unsafe_allow_html=True)
             
             # Row 1: ราคา
@@ -248,12 +250,11 @@ if submit_btn:
 
             st.write("") 
 
-            # [แก้ไข] เอา Chart ออก แล้วใส่ EMA 20/50/200 แทน
+            # แสดง EMA แทนกราฟ
             col_ema, col_ai = st.columns([1.5, 1.5])
             
             with col_ema:
                 st.subheader("📉 ค่าเส้นค่าเฉลี่ย (EMA)")
-                # สร้าง 3 คอลัมน์ย่อยเพื่อแสดงค่า EMA
                 e1, e2, e3 = st.columns(3)
                 with e1: st.metric("EMA 20", f"{ema20:.2f}")
                 with e2: st.metric("EMA 50", f"{ema50:.2f}")
