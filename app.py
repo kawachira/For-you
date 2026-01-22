@@ -52,29 +52,35 @@ with st.form(key='search_form'):
     submit_btn = st.form_submit_button("🚀 วิเคราะห์หุ้นเดี๋ยวนี้")
 
 # --- 3. ฟังก์ชันดึงข้อมูล (Cached) ---
+# แก้ไข: ส่งค่ากลับเฉพาะ DataFrame และ Dictionary เท่านั้น (ห้ามส่ง Ticker object)
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_stock_data(symbol, interval):
     try:
         ticker = yf.Ticker(symbol)
         df = ticker.history(period="max", interval=interval)
-        return df, ticker
+        
+        # ดึงข้อมูล Info ออกมาเก็บใส่ตัวแปรเลย (เพื่อให้ Cache จำได้)
+        stock_info = ticker.info 
+        
+        return df, stock_info
     except:
         return None, None
 
-# --- 4. แสดงผลลัพธ์ (ต่อจากข้างล่างเลย) ---
+# --- 4. แสดงผลลัพธ์ ---
 if submit_btn:
     st.divider() # ขีดเส้นคั่น
     with st.spinner(f"กำลังให้ AI วิเคราะห์ {symbol_input}..."):
         try:
-            df, ticker = get_stock_data(symbol_input, tf_code)
+            # รับค่า df และ info (ที่เป็น Dictionary ธรรมดาแล้ว)
+            df, info = get_stock_data(symbol_input, tf_code)
 
             if df is not None and not df.empty:
                 # แก้บั๊กหัวตาราง
                 if isinstance(df.columns, pd.MultiIndex):
                     df.columns = df.columns.get_level_values(0)
 
-                # ข้อมูลพื้นฐาน
-                info = ticker.info
+                # ดึงข้อมูลจาก Info Dictionary ที่เราเตรียมไว้
+                # ใช้ .get() เพื่อป้องกัน Error ถ้าไม่มีข้อมูล
                 pe_ratio = info.get('trailingPE', 'N/A')
                 long_name = info.get('longName', symbol_input)
                 
@@ -151,3 +157,4 @@ if submit_btn:
                 st.error(f"❌ ไม่พบข้อมูลหุ้นชื่อ {symbol_input} หรือตลาดปิดอยู่ครับ")
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาด: {e}")
+            st.warning("ลองกดปุ่ม Reboot App หรือตรวจสอบชื่อหุ้นอีกครั้งครับ")
