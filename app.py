@@ -311,4 +311,18 @@ if submit_btn:
             supports, resistances = [], []
             res_val = df['High'].tail(60).max(); resistances.append((res_val, "High เดิม (60 แท่ง)"))
             if price < ema200: resistances.append((ema200, "เส้น EMA 200"))
-            if price > ema200: supports.extend([(ema20, "EMA 20 (รับซิ่ง)"), (ema50, "
+            if price > ema200: supports.extend([(ema20, "EMA 20 (รับซิ่ง)"), (ema50, "EMA 50 (รับหลัก)"), (ema200, "EMA 200 (รับสุดท้าย)")])
+            else: supports.extend([(df['Low'].tail(60).min(), "Low เดิม"), (df['Low'].tail(200).min(), "Low รอบใหญ่")])
+
+            c_sup, c_res = st.columns(2)
+            with c_sup:
+                st.markdown("#### 🟢 แนวรับ (จุดรอซื้อ)")
+                for v, d in supports: 
+                    if v < price: st.write(f"- **{v:.2f}** : {d}")
+            with c_res:
+                st.markdown("#### 🔴 แนวต้าน (จุดรอขาย)")
+                for v, d in resistances:
+                    if v > price: st.write(f"- **{v:.2f}** : {d}")
+
+        elif df is not None: st.warning("⚠️ หุ้นใหม่ ข้อมูลไม่พอคำนวณ EMA200"); st.line_chart(df['Close'])
+        else: st.error(f"❌ ไม่พบข้อมูลหุ้น: {symbol_input}")
