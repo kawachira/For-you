@@ -9,13 +9,13 @@ st.set_page_config(page_title="AI Stock Master", page_icon="💎", layout="wide"
 # --- 2. CSS ปรับแต่งความสวยงาม (รองรับ Dark Mode) ---
 st.markdown("""
     <style>
-    /* [แก้ไข] 1. ลดระยะห่างด้านบน เพื่อดันชื่อแอปขึ้นไปข้างบน */
+    /* [แก้ไข UI] 1. ลดระยะห่างด้านบน */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 0rem !important;
     }
 
-    /* [แก้ไข] 2. ล็อคการเลื่อนหน้าจอ (Scroll) เป็นค่าเริ่มต้น */
+    /* [แก้ไข UI] 2. ล็อคการเลื่อนหน้าจอ (Scroll) เป็นค่าเริ่มต้น */
     div[data-testid="stAppViewContainer"] {
         overflow: hidden !important;
     }
@@ -105,7 +105,10 @@ def get_pe_interpretation(pe):
 def get_data(symbol, interval):
     try:
         ticker = yf.Ticker(symbol)
-        df = ticker.history(period="2y", interval=interval)
+        
+        # [แก้ไข Bug Timeframe] เปลี่ยนจาก "2y" เป็น "10y" 
+        # เพื่อให้ Timeframe Week มีจำนวนแท่งเทียนเกิน 200 แท่ง สำหรับคำนวณ EMA200
+        df = ticker.history(period="10y", interval=interval)
         
         stock_info = {
             'longName': ticker.info.get('longName', symbol),
@@ -162,7 +165,7 @@ def analyze_market_structure(price, ema20, ema50, ema200, rsi):
 
 # --- 7. ส่วนแสดงผล ---
 if submit_btn:
-    # [แก้ไข] 3. ปลดล็อคให้ Scroll ได้ เมื่อกดปุ่มและมีผลลัพธ์
+    # [แก้ไข UI] 3. ปลดล็อคให้ Scroll ได้ เมื่อกดปุ่มและมีผลลัพธ์
     st.markdown("""
         <style>
         div[data-testid="stAppViewContainer"] {
@@ -268,12 +271,11 @@ if submit_btn:
 
             st.write("") 
 
-            # เอา Chart ออก แล้วใส่ EMA 20/50/200 แทน
+            # แสดง EMA 20/50/200
             col_ema, col_ai = st.columns([1.5, 1.5])
             
             with col_ema:
                 st.subheader("📉 ค่าเส้นค่าเฉลี่ย (EMA)")
-                # สร้าง 3 คอลัมน์ย่อยเพื่อแสดงค่า EMA
                 e1, e2, e3 = st.columns(3)
                 with e1: st.metric("EMA 20", f"{ema20:.2f}")
                 with e2: st.metric("EMA 50", f"{ema50:.2f}")
