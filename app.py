@@ -6,125 +6,143 @@ import pandas_ta as ta
 # --- 1. ตั้งค่าหน้าเว็บ ---
 st.set_page_config(page_title="AI Stock Master", page_icon="💎", layout="wide")
 
-# --- 2. CSS ---
+# --- 2. CSS ปรับแต่งความสวยงาม (รองรับ Dark Mode) ---
 st.markdown("""
-<style>
-h1 { text-align:center; font-size:2.8rem !important; }
-</style>
+    <style>
+    h1 {
+        text-align: center;
+        font-size: 2.8rem !important;
+        margin-bottom: 10px;
+    }
+    div[data-testid="stForm"] {
+        border: none;
+        padding: 30px;
+        border-radius: 20px;
+        background-color: var(--secondary-background-color);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    div[data-testid="stFormSubmitButton"] button {
+        width: 100%;
+        border-radius: 12px;
+        font-size: 1.2rem;
+        font-weight: bold;
+        padding: 15px 0;
+    }
+    div[data-testid="metric-container"] label { font-size: 1.1rem; }
+    div[data-testid="metric-container"] div[data-testid="stMetricValue"] { font-size: 1.8rem; }
+    </style>
 """, unsafe_allow_html=True)
 
-# --- 3. Header ---
-st.markdown("<h1>💎 AI<br><span style='font-size:1.4rem;opacity:0.7'>ระบบวิเคราะห์หุ้นอัจฉริยะ</span></h1>", unsafe_allow_html=True)
+# --- 3. ส่วนหัวข้อและค้นหา ---
+st.markdown("<h1>💎 Ai<br><span style='font-size: 1.5rem; opacity: 0.7;'>ระบบวิเคราะห์หุ้นอัจฉริยะ</span></h1>", unsafe_allow_html=True)
 st.write("")
 
-# --- Search ---
-col1, col2, col3 = st.columns([1,2,1])
-with col2:
-    with st.form("search"):
-        symbol_input = st.text_input("ชื่อหุ้น", value="EOSE").upper()
-        timeframe = st.selectbox("Timeframe", ["1d", "1wk"])
-        tf_code = "1wk" if timeframe == "1wk" else "1d"
-        submit = st.form_submit_button("วิเคราะห์")
+col_space1, col_form, col_space2 = st.columns([1, 2, 1])
+with col_form:
+    with st.form(key='search_form'):
+        st.markdown("### 🔍 ค้นหาหุ้นที่ต้องการ")
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            symbol_input = st.text_input("ชื่อหุ้น (เช่น PTT.BK, TSLA):", value="EOSE").upper().strip()
+        with c2:
+            timeframe = st.selectbox("Timeframe:", ["1d (รายวัน)", "1wk (รายสัปดาห์)"], index=0)
+            tf_code = "1wk" if "1wk" in timeframe else "1d"
+        submit_btn = st.form_submit_button("🚀 วิเคราะห์ทันที")
 
-# --- Helper ---
-def arrow_html(change):
-    if change is None:
-        return ""
-    if change > 0:
-        return "<span style='color:#16a34a;font-weight:600'>▲</span>"
-    elif change < 0:
-        return "<span style='color:#dc2626;font-weight:600'>▼</span>"
-    return "—"
+# --- 4. Interpretation Functions ---
+def get_rsi_interpretation(rsi):
+    if rsi >= 80: return "🔴 Extreme Overbought"
+    elif rsi >= 70: return "🟠 Overbought"
+    elif rsi >= 60: return "🟢 Strong Bullish"
+    elif rsi > 40: return "⚪ Neutral"
+    elif rsi > 30: return "🟠 Bearish"
+    elif rsi > 20: return "🟢 Oversold"
+    else: return "🟢 Extreme Oversold"
 
-# --- Data ---
-@st.cache_data(ttl=1800)
+def get_pe_interpretation(pe):
+    if isinstance(pe, str): return "N/A"
+    if pe < 0: return "ขาดทุน"
+    if pe < 15: return "หุ้นถูก"
+    if pe < 30: return "ปกติ"
+    return "หุ้นแพง"
+
+# --- 5. ดึงข้อมูล ---
+@st.cache_data(ttl=1800, show_spinner=False)
 def get_data(symbol, interval):
-    t = yf.Ticker(symbol)
-    df = t.history(period="2y", interval=interval)
-    info = t.info
+    ticker = yf.Ticker(symbol)
+    df = ticker.history(period="2y", interval=interval)
+    info = ticker.info
+
     stock_info = {
-        "longName": info.get("longName", symbol),
-        "regularMarketPrice": info.get("regularMarketPrice"),
-        "regularMarketChange": info.get("regularMarketChange"),
-        "regularMarketChangePercent": info.get("regularMarketChangePercent"),
-        "preMarketPrice": info.get("preMarketPrice"),
-        "preMarketChange": info.get("preMarketChange"),
-        "preMarketChangePercent": info.get("preMarketChangePercent"),
-        "postMarketPrice": info.get("postMarketPrice"),
-        "postMarketChange": info.get("postMarketChange"),
-        "postMarketChangePercent": info.get("postMarketChangePercent"),
-        "trailingPE": info.get("trailingPE", "N/A")
+        'longName': info.get('longName', symbol),
+        'trailingPE': info.get('trailingPE', 'N/A'),
+
+        # >>> ADD <<<
+        'regularMarketPrice': info.get('regularMarketPrice'),
+        'regularMarketChange': info.get('regularMarketChange'),
+        'regularMarketChangePercent': info.get('regularMarketChangePercent'),
+        'preMarketPrice': info.get('preMarketPrice'),
+        'preMarketChange': info.get('preMarketChange'),
+        'preMarketChangePercent': info.get('preMarketChangePercent'),
+        'postMarketPrice': info.get('postMarketPrice'),
+        'postMarketChange': info.get('postMarketChange'),
+        'postMarketChangePercent': info.get('postMarketChangePercent'),
     }
     return df, stock_info
 
-# --- Run ---
-if submit:
+# >>> ADD <<< ลูกศรขึ้นลง สีเขียว/แดง
+def arrow(v):
+    if v is None: return ""
+    return "🟢 ▲" if v > 0 else "🔴 ▼" if v < 0 else "➖"
+
+# --- 6. แสดงผล ---
+if submit_btn:
+    st.divider()
     df, info = get_data(symbol_input, tf_code)
 
-    if df is None or df.empty:
-        st.error("ไม่พบข้อมูล")
-        st.stop()
+    if df is not None and not df.empty and len(df) > 200:
+        df['EMA20'] = ta.ema(df['Close'], 20)
+        df['EMA50'] = ta.ema(df['Close'], 50)
+        df['EMA200'] = ta.ema(df['Close'], 200)
+        df['RSI'] = ta.rsi(df['Close'], 14)
 
-    # Indicator เดิม
-    df["EMA20"] = ta.ema(df["Close"], 20)
-    df["EMA50"] = ta.ema(df["Close"], 50)
-    df["EMA200"] = ta.ema(df["Close"], 200)
-    df["RSI"] = ta.rsi(df["Close"], 14)
+        last, prev = df.iloc[-1], df.iloc[-2]
+        price = last['Close']
+        change = price - prev['Close']
+        change_pct = (change / prev['Close']) * 100
 
-    last = df.iloc[-1]
+        st.markdown(f"<h2 style='text-align:center;'>🏢 {info['longName']} ({symbol_input})</h2>", unsafe_allow_html=True)
 
-    st.markdown(f"## ({symbol_input})")
+        c1, c2 = st.columns(2)
 
-    # ===== ราคา (ตำแหน่งเดียวกับ 17.53) =====
-    price = info["regularMarketPrice"]
-    chg = info["regularMarketChange"]
-    chg_pct = info["regularMarketChangePercent"]
+        # --- ราคาหลัก (ของเดิม) ---
+        c1.metric("💰 ราคาล่าสุด", f"{price:.2f}", f"{change:.2f} ({change_pct:.2f}%)")
 
-    color = "#16a34a" if chg and chg > 0 else "#dc2626"
+        # >>> ADD <<< เพิ่มตรงหลังราคา
+        with c1:
+            st.markdown(f"""
+            <div style="margin-top:10px;font-size:15px;">
+            <b>⏱️ ระหว่างตลาด</b><br>
+            {arrow(info['regularMarketChange'])} {info['regularMarketChangePercent']}%<br><br>
 
-    st.markdown(f"""
-    <div style="margin-bottom:10px">
-        <div style="font-size:40px;font-weight:600">
-            {price:.2f}
-        </div>
-        <div style="display:inline-block;
-                    background:#e6f4ea;
-                    color:{color};
-                    padding:6px 14px;
-                    border-radius:999px;
-                    font-size:18px;
-                    font-weight:600;">
-            {arrow_html(chg)} {chg:+.2f} ({chg_pct:.2f}%) วันนี้
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+            <b>🌅 ก่อนเปิดตลาด</b><br>
+            {arrow(info['preMarketChange'])} {info['preMarketChangePercent']}%<br><br>
 
-    # --- Pre Market ---
-    if info["preMarketPrice"] is not None:
-        st.markdown(f"""
-        <div style="font-size:16px;color:#6b7280">
-        ก่อนเปิดตลาด {info["preMarketPrice"]:.2f}
-        <span style="color:{'#16a34a' if info['preMarketChange']>0 else '#dc2626'}">
-        {arrow_html(info["preMarketChange"])}
-        {info["preMarketChange"]:+.2f} ({info["preMarketChangePercent"]:.2f}%)
-        </span>
-        </div>
-        """, unsafe_allow_html=True)
+            <b>🌙 หลังปิดตลาด</b><br>
+            {arrow(info['postMarketChange'])} {info['postMarketChangePercent']}%<br>
 
-    # --- Post Market ---
-    if info["postMarketPrice"] is not None:
-        st.markdown(f"""
-        <div style="font-size:16px;color:#6b7280">
-        หลังปิดตลาด {info["postMarketPrice"]:.2f}
-        <span style="color:{'#16a34a' if info['postMarketChange']>0 else '#dc2626'}">
-        {arrow_html(info["postMarketChange"])}
-        {info["postMarketChange"]:+.2f} ({info["postMarketChangePercent"]:.2f}%)
-        </span>
-        </div>
-        """, unsafe_allow_html=True)
+            <span style="font-size:12px;opacity:0.6;">
+            *Market = near real-time / Pre & Post = last available*
+            </span>
+            </div>
+            """, unsafe_allow_html=True)
 
-    st.divider()
+        c2.success("📈 วิเคราะห์แนวโน้ม")
 
-    # ===== ส่วนเดิม (ไม่แตะ) =====
-    st.subheader("📈 กราฟราคา")
-    st.line_chart(df["Close"])
+        st.subheader("📈 กราฟราคา")
+        st.line_chart(df.tail(150)['Close'])
+
+    else:
+        st.error("ไม่พบข้อมูลหุ้น")
