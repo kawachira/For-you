@@ -6,16 +6,16 @@ import pandas_ta as ta
 # --- 1. ตั้งค่าหน้าเว็บ ---
 st.set_page_config(page_title="AI Stock Master", page_icon="💎", layout="wide")
 
-# --- 2. CSS ปรับแต่งความสวยงาม (รองรับ Dark Mode) ---
+# --- 2. CSS ปรับแต่งความสวยงาม ---
 st.markdown("""
     <style>
-    /* [แก้ไข] 1. ลดระยะห่างด้านบน เพื่อดันชื่อแอปขึ้นไปข้างบน */
+    /* ลดระยะห่างด้านบน */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 0rem !important;
     }
 
-    /* [แก้ไข] 2. ล็อคการเลื่อนหน้าจอ (Scroll) เป็นค่าเริ่มต้น */
+    /* ล็อคการเลื่อนหน้าจอ (Scroll) เป็นค่าเริ่มต้น */
     div[data-testid="stAppViewContainer"] {
         overflow: hidden !important;
     }
@@ -68,8 +68,13 @@ with col_form:
         with c1:
             symbol_input = st.text_input("ชื่อหุ้น (เช่น PTT.BK, TSLA):", value="EOSE").upper().strip()
         with c2:
-            timeframe = st.selectbox("Timeframe:", ["1d (รายวัน)", "1wk (รายสัปดาห์)"], index=0)
-            tf_code = "1wk" if "1wk" in timeframe else "1d"
+            # [แก้ไข] เพิ่มตัวเลือก 1h (รายชั่วโมง) ลงใน Dropdown
+            timeframe = st.selectbox("Timeframe:", ["1h (รายชั่วโมง)", "1d (รายวัน)", "1wk (รายสัปดาห์)"], index=1)
+            
+            # Logic แปลงค่าเป็น code ที่ yfinance เข้าใจ
+            if "1wk" in timeframe: tf_code = "1wk"
+            elif "1h" in timeframe: tf_code = "1h"
+            else: tf_code = "1d"
             
         submit_btn = st.form_submit_button("🚀 วิเคราะห์ทันที")
 
@@ -105,8 +110,16 @@ def get_pe_interpretation(pe):
 def get_data(symbol, interval):
     try:
         ticker = yf.Ticker(symbol)
-        # ใช้ 10y เพื่อให้คำนวณ Week ได้
-        df = ticker.history(period="10y", interval=interval)
+        
+        # [แก้ไข Logic สำคัญ] 
+        # ถ้าเป็น 1h ต้องดึงไม่เกิน 730d (ข้อจำกัด yfinance)
+        # ถ้าเป็น 1d หรือ 1wk ให้ดึง 10y เพื่อให้ EMA ครบถ้วน
+        if interval == "1h":
+            period_val = "730d"
+        else:
+            period_val = "10y"
+            
+        df = ticker.history(period=period_val, interval=interval)
         
         stock_info = {
             'longName': ticker.info.get('longName', symbol),
@@ -163,7 +176,7 @@ def analyze_market_structure(price, ema20, ema50, ema200, rsi):
 
 # --- 7. ส่วนแสดงผล ---
 if submit_btn:
-    # [แก้ไข] 3. ปลดล็อคให้ Scroll ได้ เมื่อกดปุ่มและมีผลลัพธ์
+    # ปลดล็อคให้ Scroll ได้
     st.markdown("""
         <style>
         div[data-testid="stAppViewContainer"] {
@@ -191,7 +204,6 @@ if submit_btn:
 
             # --- เริ่มแสดงผล ---
             
-            # ปรับ Margin-top ติดลบ เพื่อให้ชื่อหุ้นขยับขึ้นไปด้านบนใกล้เส้น Divider
             st.markdown(f"<h2 style='text-align: center; margin-top: -15px; margin-bottom: 25px;'>🏢 {info['longName']} ({symbol_input})</h2>", unsafe_allow_html=True)
             
             # Row 1: ราคา
@@ -251,10 +263,11 @@ if submit_btn:
                         </span>
                     </div>""", unsafe_allow_html=True)
 
-            # [แก้ไข] สร้างข้อความระบุ Timeframe
-            tf_label = "TF Day" if tf_code == "1d" else "TF Week"
+            # Logic สร้าง Label ระบุ Timeframe
+            if tf_code == "1h": tf_label = "TF 1 Hour"
+            elif tf_code == "1wk": tf_label = "TF Week"
+            else: tf_label = "TF Day"
 
-            # [แก้ไข] เพิ่มข้อความ TF ลงไปในกล่องแสดงผล
             if ai_color == "green": c2.success(f"📈 {ai_status}\n\n**{tf_label}**")
             elif ai_color == "red": c2.error(f"📉 {ai_status}\n\n**{tf_label}**")
             else: c2.warning(f"⚖️ {ai_status}\n\n**{tf_label}**")
@@ -273,12 +286,11 @@ if submit_btn:
 
             st.write("") 
 
-            # เอา Chart ออก แล้วใส่ EMA 20/50/200 แทน
+            # EMA แบบย่อ
             col_ema, col_ai = st.columns([1.5, 1.5])
             
             with col_ema:
                 st.subheader("📉 ค่าเส้นค่าเฉลี่ย (EMA)")
-                # [แก้ไข] ใช้ Markdown HTML จัดรูปแบบเองให้เล็กลงและประหยัดที่
                 st.markdown(f"""
                     <div style='font-size: 1.1rem; line-height: 1.8;'>
                         <b>EMA 20</b> = {ema20:.2f}<br>
@@ -297,20 +309,6 @@ if submit_btn:
             # Support & Resistance
             st.subheader("🚧 แผนการเทรด (Support & Resistance)")
             supports, resistances = [], []
-            res_val = df['High'].tail(60).max(); resistances.append((res_val, "High เดิม (60 วัน)"))
+            res_val = df['High'].tail(60).max(); resistances.append((res_val, "High เดิม (60 แท่ง)"))
             if price < ema200: resistances.append((ema200, "เส้น EMA 200"))
-            if price > ema200: supports.extend([(ema20, "EMA 20 (รับซิ่ง)"), (ema50, "EMA 50 (รับหลัก)"), (ema200, "EMA 200 (รับสุดท้าย)")])
-            else: supports.extend([(df['Low'].tail(60).min(), "Low เดิม"), (df['Low'].tail(252).min(), "Low รอบ 1 ปี")])
-
-            c_sup, c_res = st.columns(2)
-            with c_sup:
-                st.markdown("#### 🟢 แนวรับ (จุดรอซื้อ)")
-                for v, d in supports: 
-                    if v < price: st.write(f"- **{v:.2f}** : {d}")
-            with c_res:
-                st.markdown("#### 🔴 แนวต้าน (จุดรอขาย)")
-                for v, d in resistances:
-                    if v > price: st.write(f"- **{v:.2f}** : {d}")
-
-        elif df is not None: st.warning("⚠️ หุ้นใหม่ ข้อมูลไม่พอคำนวณ EMA200"); st.line_chart(df['Close'])
-        else: st.error(f"❌ ไม่พบข้อมูลหุ้น: {symbol_input}")
+            if price > ema200: supports.extend([(ema20, "EMA 20 (รับซิ่ง)"), (ema50, "
