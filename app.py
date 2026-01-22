@@ -14,7 +14,7 @@ st.markdown("""
         text-align: center;
         font-size: 2.8rem !important;
         margin-bottom: 0px;
-        margin-top: _10px; /* [แก้ไข 1] ขยับขึ้นไปข้างบนนิดหน่อย */
+        margin-top: 0px; /* [แก้ไข 1] ขยับขึ้นไปข้างบนนิดหน่อย */
     }
     
     /* กรอบค้นหาแบบใหม่ */
