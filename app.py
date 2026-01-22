@@ -9,13 +9,13 @@ st.set_page_config(page_title="AI Stock Master", page_icon="💎", layout="wide"
 # --- 2. CSS ปรับแต่งความสวยงาม (รองรับ Dark Mode) ---
 st.markdown("""
     <style>
-    /* [แก้ไข UI] 1. ลดระยะห่างด้านบน */
+    /* [แก้ไข] 1. ลดระยะห่างด้านบน เพื่อดันชื่อแอปขึ้นไปข้างบน */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 0rem !important;
     }
 
-    /* [แก้ไข UI] 2. ล็อคการเลื่อนหน้าจอ (Scroll) เป็นค่าเริ่มต้น */
+    /* [แก้ไข] 2. ล็อคการเลื่อนหน้าจอ (Scroll) เป็นค่าเริ่มต้น */
     div[data-testid="stAppViewContainer"] {
         overflow: hidden !important;
     }
@@ -105,9 +105,7 @@ def get_pe_interpretation(pe):
 def get_data(symbol, interval):
     try:
         ticker = yf.Ticker(symbol)
-        
-        # [แก้ไข Bug Timeframe] เปลี่ยนจาก "2y" เป็น "10y" 
-        # เพื่อให้ Timeframe Week มีจำนวนแท่งเทียนเกิน 200 แท่ง สำหรับคำนวณ EMA200
+        # ใช้ 10y เพื่อให้คำนวณ Week ได้
         df = ticker.history(period="10y", interval=interval)
         
         stock_info = {
@@ -165,7 +163,7 @@ def analyze_market_structure(price, ema20, ema50, ema200, rsi):
 
 # --- 7. ส่วนแสดงผล ---
 if submit_btn:
-    # [แก้ไข UI] 3. ปลดล็อคให้ Scroll ได้ เมื่อกดปุ่มและมีผลลัพธ์
+    # [แก้ไข] 3. ปลดล็อคให้ Scroll ได้ เมื่อกดปุ่มและมีผลลัพธ์
     st.markdown("""
         <style>
         div[data-testid="stAppViewContainer"] {
@@ -253,9 +251,13 @@ if submit_btn:
                         </span>
                     </div>""", unsafe_allow_html=True)
 
-            if ai_color == "green": c2.success(f"📈 {ai_status}")
-            elif ai_color == "red": c2.error(f"📉 {ai_status}")
-            else: c2.warning(f"⚖️ {ai_status}")
+            # [แก้ไข] สร้างข้อความระบุ Timeframe
+            tf_label = "TF Day" if tf_code == "1d" else "TF Week"
+
+            # [แก้ไข] เพิ่มข้อความ TF ลงไปในกล่องแสดงผล
+            if ai_color == "green": c2.success(f"📈 {ai_status}\n\n**{tf_label}**")
+            elif ai_color == "red": c2.error(f"📉 {ai_status}\n\n**{tf_label}**")
+            else: c2.warning(f"⚖️ {ai_status}\n\n**{tf_label}**")
 
             # Row 2: P/E และ RSI
             c3, c4 = st.columns(2)
@@ -271,15 +273,19 @@ if submit_btn:
 
             st.write("") 
 
-            # แสดง EMA 20/50/200
+            # เอา Chart ออก แล้วใส่ EMA 20/50/200 แทน
             col_ema, col_ai = st.columns([1.5, 1.5])
             
             with col_ema:
                 st.subheader("📉 ค่าเส้นค่าเฉลี่ย (EMA)")
-                e1, e2, e3 = st.columns(3)
-                with e1: st.metric("EMA 20", f"{ema20:.2f}")
-                with e2: st.metric("EMA 50", f"{ema50:.2f}")
-                with e3: st.metric("EMA 200", f"{ema200:.2f}")
+                # [แก้ไข] ใช้ Markdown HTML จัดรูปแบบเองให้เล็กลงและประหยัดที่
+                st.markdown(f"""
+                    <div style='font-size: 1.1rem; line-height: 1.8;'>
+                        <b>EMA 20</b> = {ema20:.2f}<br>
+                        <b>EMA 50</b> = {ema50:.2f}<br>
+                        <b>EMA 200</b> = {ema200:.2f}
+                    </div>
+                """, unsafe_allow_html=True)
                 
             with col_ai:
                 st.subheader("🤖 บทวิเคราะห์ AI")
