@@ -66,9 +66,7 @@ def get_pe_interpretation(pe):
     if pe < 30: return "🟡 ราคาเหมาะสม"
     return "🟠 หุ้นแพง (Growth)"
 
-# --- 5. Get Data (หัวใจสำคัญของการรองรับคนเยอะ) ---
-# ttl=60 แปลว่า ข้อมูลจะถูกจำไว้ 60 วินาที 
-# ถ้าเพื่อน 100 คนกดหุ้นตัวเดิมใน 1 นาทีนี้ ระบบจะดึงจาก Yahoo แค่ครั้งเดียว!
+# --- 5. Get Data ---
 @st.cache_data(ttl=60, show_spinner=False)
 def get_data(symbol, interval):
     try:
@@ -99,32 +97,99 @@ def get_data(symbol, interval):
     except:
         return None, None
 
-# --- 6. AI Logic ---
+# --- 6. AI Logic (UPDATED: Detailed Report) ---
 def analyze_market_structure(price, ema20, ema50, ema200, rsi):
-    status, color, advice = "", "", ""
-    if price > ema200:
-        if price > ema20 and price > ema50:
-            status, color = "Strong Uptrend (ขาขึ้นแข็งแกร่ง)", "green"
-            advice = "🟢 **Let Profit Run:** ถือต่อไป ใช้ EMA20 เป็นจุดล็อคกำไร"
-            if rsi > 75: advice += "\n⚠️ **ระวัง:** RSI สูงมาก ห้ามไล่ราคา อาจมีย่อตัว"
-        elif price < ema50:
-            status, color = "Correction (พักตัวในขาขึ้น)", "orange"
-            advice = "🟡 **Buy on Dip:** ราคาย่อหาแนวรับ เป็นโอกาสสะสม (ถ้ารับอยู่)"
-        else:
-            status, color = "Uptrend (ขาขึ้นปกติ)", "green"
-            advice = "🟢 **Hold:** ถือหุ้นต่อ แนวโน้มยังดี"
+    """
+    สร้างรายงาน AI Intelligent Report 3 ส่วน:
+    1. บทวิเคราะห์ทางเทคนิค
+    2. คำอธิบายสถานะรายวัน
+    3. สรุปสิ่งที่ควรทำ
+    """
+    report = {
+        "technical": {},
+        "context": "",
+        "action": {},
+        "status_color": ""
+    }
+
+    # --- Scenario 1: ขาขึ้นแข็งแกร่ง (Strong Uptrend) ---
+    if price > ema200 and price > ema50 and price > ema20:
+        report["status_color"] = "green"
+        report["technical"] = {
+            "structure": "หุ้นแข็งแกร่งมาก (Strong Uptrend) วิ่งเกาะเส้น EMA 20",
+            "status": "กระทิงดุ! แรงซื้อยังคงสนับสนุนต่อเนื่อง โมเมนตัมเป็นบวกเต็มที่"
+        }
+        report["context"] = "ภาพรวมวันนี้: หุ้นเนื้อหอมมาก ตลาดยังมีความเชื่อมั่นสูง คนที่มีของก็นั่งยิ้มปล่อยกำไรไหลไป ส่วนคนไม่มีของต้องใจเย็นรอจังหวะย่อ ห้ามไล่ราคาดอยๆ"
+        
+        # Action Plan
+        strategy = "**กลยุทธ์: Let Profit Run**"
+        action_1 = "ถือต่อ (Hold) อย่าเพิ่งรีบขายหมู จนกว่ากราฟจะเสียทรง"
+        action_2 = f"ใช้เส้น **EMA 20 ({ema20:.2f})** เป็นจุด Trailing Stop เลื่อนตามราคาไปเรื่อยๆ"
+        
+        if rsi > 75: # Warning case
+            report["context"] += " (แต่ระวัง RSI สูงเกินไป อาจมีการพักตัวระยะสั้น)"
+            action_1 = "ถือต่อ แต่เริ่มแบ่งขายทำกำไรบางส่วน (Take Profit) เมื่อราคาพุ่งแรงผิดปกติ"
+
+        report["action"] = {"strategy": strategy, "steps": [action_1, action_2]}
+
+    # --- Scenario 2: ขาขึ้นพักตัว (Correction in Uptrend) ---
+    elif price > ema200 and price < ema20:
+        report["status_color"] = "orange"
+        report["technical"] = {
+            "structure": "ย่อตัวในขาขึ้น (Correction) ราคาหลุด EMA 20 ลงมาทดสอบแนวรับ",
+            "status": "พักฐานชั่วคราว แรงขายทำกำไรเริ่มออกมา แต่เทรนด์หลักยังไม่เสีย"
+        }
+        report["context"] = "ภาพรวมวันนี้: ราคาเริ่มตึงและมีการย่อตัวลงมา เป็นเรื่องปกติของหุ้นขาขึ้นเพื่อลดความร้อนแรง เป็นช่วงวัดใจว่าจะรับอยู่หรือไม่"
+        
+        # Action Plan
+        strategy = "**กลยุทธ์: Buy on Dip (รอซื้อเมื่อย่อ)**"
+        action_1 = "Wait & See: รอดูว่ายืนเหนือเส้น EMA 50 ได้หรือไม่"
+        action_2 = f"ตั้งจุดรอรับบริเวณ **EMA 50 ({ema50:.2f})** ถ้ารับอยู่คือโอกาสทองในการสะสมเพิ่ม"
+        
+        if price < ema50: # Deep correction
+             action_2 = f"ระวัง! ราคาหลุด EMA 50 ลงมา แนวรับถัดไปคือ EMA 200 ({ema200:.2f}) ชะลอการซื้อ"
+
+        report["action"] = {"strategy": strategy, "steps": [action_1, action_2]}
+
+    # --- Scenario 3: ขาลง (Downtrend) ---
+    elif price < ema200 and price < ema50:
+        report["status_color"] = "red"
+        report["technical"] = {
+            "structure": "ขาลงเต็มตัว (Downtrend) ราคายังทำ Low ใหม่ต่อเนื่อง",
+            "status": "หมีครองตลาด! แรงขายชนะขาดลอย แนวต้านทำงานได้ดีกว่าแนวรับ"
+        }
+        report["context"] = "ภาพรวมวันนี้: บรรยากาศอึมครึม แรงขายกดดันตลอดทาง การเด้งขึ้นเป็นเพียงการเด้งเพื่อลงต่อ (Rebound) ยังไม่เห็นสัญญาณกลับตัว"
+        
+        # Action Plan
+        strategy = "**กลยุทธ์: Defensive / Cash is King**"
+        action_1 = "ห้ามรับมีด! (Don't catch a falling knife) รอให้ราคาหยุดลงและสร้างฐานก่อน"
+        action_2 = f"ใครมีของพิจารณาตัดขาดทุน (Stop Loss) หรืออาศัยจังหวะเด้งเพื่อขายออก ลดความเสี่ยง"
+        
+        if rsi < 25: # Oversold bounce
+            strategy = "**กลยุทธ์: Speculative Buy (เก็งกำไรสั้นๆ)**"
+            report["context"] += " (แต่ RSI ต่ำมาก อาจมีเด้งสั้นๆ เร็วๆ นี้)"
+            action_1 = "เสี่ยงซื้อเล่นเด้งสั้นๆ (Oversold Bounce) เข้าไวออกไว"
+            action_2 = "วางจุด Cut Loss ให้ชิดที่สุด ถ้าหลุด Low เดิมต้องทิ้งทันที"
+
+        report["action"] = {"strategy": strategy, "steps": [action_1, action_2]}
+
+    # --- Scenario 4: ช่วงฟื้นตัว / ไซด์เวย์ (Recovery / Sideway) ---
     else:
-        if price < ema20 and price < ema50:
-            status, color = "Strong Downtrend (ขาลงรุนแรง)", "red"
-            advice = "🔴 **Avoid/Sell:** ห้ามรับมีด! แรงขายเชี่ยว รอสร้างฐานก่อน"
-            if rsi < 25: advice = "⚡ **Sniper Zone:** RSI ต่ำมาก ลุ้นเด้งสั้นๆ (เสี่ยงสูง)"
-        elif price > ema20:
-            status, color = "Recovery (พยายามฟื้นตัว)", "orange"
-            advice = "🟠 **Wait & See:** ราคากำลังสู้ รอให้ยืนเหนือ EMA50 ก่อน"
-        else:
-            status, color = "Downtrend (ขาลง)", "red"
-            advice = "🔴 **Defensive:** ถือเงินสด หรือเด้งเพื่อขายลดพอร์ต"
-    return status, color, advice
+        report["status_color"] = "yellow"
+        report["technical"] = {
+            "structure": "พยายามสร้างฐาน / ฟื้นตัว (Recovery)",
+            "status": "สู้กันดุเดือด! แรงซื้อและแรงขายก้ำกึ่ง ราคากำลังเลือกทาง"
+        }
+        report["context"] = "ภาพรวมวันนี้: ตลาดมีความผันผวน ราคาพยายามจะกลับมายืนเหนือเส้นค่าเฉลี่ย แต่ยังไม่คอนเฟิร์มร้อยเปอร์เซ็นต์"
+        
+        # Action Plan
+        strategy = "**กลยุทธ์: Wait for Confirmation**"
+        action_1 = "ผู้เล่นระยะกลาง: ถือเงินสดรอให้ราคายืนเหนือ EMA 200 ได้อย่างมั่นคงก่อน"
+        action_2 = f"ผู้เล่นระยะสั้น: เล่นรอบในกรอบ แนวต้าน {ema200:.2f} แนวรับ {ema20:.2f}"
+        
+        report["action"] = {"strategy": strategy, "steps": [action_1, action_2]}
+
+    return report
 
 # --- 7. Display ---
 if submit_btn:
@@ -140,7 +205,9 @@ if submit_btn:
             price = info['regularMarketPrice'] if info['regularMarketPrice'] else last['Close']
             rsi = last['RSI']
             ema20=last['EMA20']; ema50=last['EMA50']; ema200=last['EMA200']
-            ai_status, ai_color, ai_advice = analyze_market_structure(price, ema20, ema50, ema200, rsi)
+            
+            # เรียกใช้ฟังก์ชัน AI ใหม่
+            ai_report = analyze_market_structure(price, ema20, ema50, ema200, rsi)
 
             # Header
             st.markdown(f"<h2 style='text-align: center; margin-top: -15px; margin-bottom: 25px;'>🏢 {info['longName']} ({symbol_input})</h2>", unsafe_allow_html=True)
@@ -150,9 +217,8 @@ if submit_btn:
             with c1:
                 reg_price = info.get('regularMarketPrice')
                 reg_chg = info.get('regularMarketChange')
-                # reg_pct = info.get('regularMarketChangePercent') # ของเดิมที่มีปัญหา
                 
-                # --- แก้ไขการคำนวณ % ราคาปัจจุบัน (คำนวณสดเพื่อความแม่นยำ) ---
+                # --- แก้ไขการคำนวณ % ราคาปัจจุบัน ---
                 if reg_price and reg_chg:
                     prev_c = reg_price - reg_chg
                     if prev_c != 0:
@@ -182,13 +248,8 @@ if submit_btn:
                 pre_p = info.get('preMarketPrice'); pre_c = info.get('preMarketChange'); pre_pc = info.get('preMarketChangePercent')
                 post_p = info.get('postMarketPrice'); post_c = info.get('postMarketChange'); post_pc = info.get('postMarketChangePercent')
                 
-                # --- คำนวณ % Pre/Post Market สดใหม่ ---
-                if pre_p and reg_price and reg_price != 0:
-                     pre_pc = ((pre_p - reg_price) / reg_price) * 100
-                
-                if post_p and reg_price and reg_price != 0:
-                     post_pc = ((post_p - reg_price) / reg_price) * 100
-                # -----------------------------------------------
+                if pre_p and reg_price and reg_price != 0: pre_pc = ((pre_p - reg_price) / reg_price) * 100
+                if post_p and reg_price and reg_price != 0: post_pc = ((post_p - reg_price) / reg_price) * 100
 
                 extra_html = ""
                 if pre_p and pre_c is not None:
@@ -199,14 +260,17 @@ if submit_btn:
                 if extra_html:
                     st.markdown(f"<div style='font-size:14px; color:#6b7280; display:flex; gap: 15px; flex-wrap: wrap; margin-top: 5px;'>{extra_html}</div>", unsafe_allow_html=True)
 
-            # AI Status (แก้ไขชื่อ Time Frame ตามที่ขอ)
+            # AI Status Banner
             if tf_code == "1h": tf_label = "TF Hour (รายชั่วโมง)"
             elif tf_code == "1wk": tf_label = "TF Week (รายสัปดาห์)"
             else: tf_label = "TF Day (รายวัน)"
             
-            if ai_color == "green": c2.success(f"📈 {ai_status}\n\n**{tf_label}**")
-            elif ai_color == "red": c2.error(f"📉 {ai_status}\n\n**{tf_label}**")
-            else: c2.warning(f"⚖️ {ai_status}\n\n**{tf_label}**")
+            st_color = ai_report["status_color"]
+            main_status = ai_report["technical"]["structure"].split("(")[0] # ดึงเฉพาะข้อความสั้นๆ
+            
+            if st_color == "green": c2.success(f"📈 {main_status}\n\n**{tf_label}**")
+            elif st_color == "red": c2.error(f"📉 {main_status}\n\n**{tf_label}**")
+            else: c2.warning(f"⚖️ {main_status}\n\n**{tf_label}**")
 
             # Metrics
             c3, c4 = st.columns(2)
@@ -220,35 +284,51 @@ if submit_btn:
 
             st.write("") 
 
-            # Analysis Section
-            c_ema, c_ai = st.columns([1.5, 1.5])
+            # Analysis Section & AI Report
+            c_ema, c_ai = st.columns([1.5, 2]) # ปรับขนาดคอลัมน์ให้ AI กว้างขึ้น
             with c_ema:
                 st.subheader("📉 ค่าเส้นค่าเฉลี่ย (EMA)")
-                st.markdown(f"<div style='font-size: 1.1rem; line-height: 1.8;'><b>EMA 20</b> = {ema20:.2f}<br><b>EMA 50</b> = {ema50:.2f}<br><b>EMA 200</b> = {ema200:.2f}</div>", unsafe_allow_html=True)
-            with c_ai:
-                st.subheader("🤖 บทวิเคราะห์ AI")
-                with st.chat_message("assistant"):
-                    st.write(ai_advice)
-                    st.divider()
-                    st.markdown(f"**🔍 ปัจจัยทางเทคนิค:**\n- EMA200: {'✅ ยืนเหนือ' if price>ema200 else '❌ หลุดต่ำกว่า'} ({ema200:.2f})\n- RSI: {rsi:.2f} ({rsi_lbl})")
-
-            # S/R
-            st.subheader("🚧 แผนการเทรด (Support & Resistance)")
-            supports, resistances = [], []
-            res_val = df['High'].tail(60).max(); resistances.append((res_val, "High เดิม (60 แท่ง)"))
-            if price < ema200: resistances.append((ema200, "เส้น EMA 200"))
-            if price > ema200: supports.extend([(ema20, "EMA 20"), (ema50, "EMA 50"), (ema200, "EMA 200")])
-            else: supports.extend([(df['Low'].tail(60).min(), "Low เดิม"), (df['Low'].tail(200).min(), "Low รอบใหญ่")])
-
-            c_sup, c_res = st.columns(2)
-            with c_sup:
+                st.markdown(f"""
+                <div style='background-color: var(--secondary-background-color); padding: 15px; border-radius: 10px;'>
+                    <div style='display:flex; justify-content:space-between; margin-bottom:5px;'><span>🔵 EMA 20 (ระยะสั้น)</span> <b>{ema20:.2f}</b></div>
+                    <div style='display:flex; justify-content:space-between; margin-bottom:5px;'><span>🟠 EMA 50 (ระยะกลาง)</span> <b>{ema50:.2f}</b></div>
+                    <div style='display:flex; justify-content:space-between;'><span>⚫ EMA 200 (ระยะยาว)</span> <b>{ema200:.2f}</b></div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.subheader("🚧 แผนการเทรด (S/R)")
+                supports, resistances = [], []
+                res_val = df['High'].tail(60).max(); resistances.append((res_val, "High เดิม (60 แท่ง)"))
+                if price < ema200: resistances.append((ema200, "เส้น EMA 200"))
+                if price > ema200: supports.extend([(ema20, "EMA 20"), (ema50, "EMA 50"), (ema200, "EMA 200")])
+                else: supports.extend([(df['Low'].tail(60).min(), "Low เดิม"), (df['Low'].tail(200).min(), "Low รอบใหญ่")])
+                
                 st.markdown("#### 🟢 แนวรับ (จุดรอซื้อ)")
                 for v, d in supports: 
                     if v < price: st.write(f"- **{v:.2f}** : {d}")
-            with c_res:
                 st.markdown("#### 🔴 แนวต้าน (จุดรอขาย)")
                 for v, d in resistances:
                     if v > price: st.write(f"- **{v:.2f}** : {d}")
+
+            with c_ai:
+                st.subheader("🤖 AI INTELLIGENT REPORT")
+                # แสดงผลแบบกล่อง Chat เหมือนเดิม แต่จัด Format ใหม่ตามรูป
+                with st.chat_message("assistant"):
+                    st.markdown("### 🧠 1. บทวิเคราะห์ทางเทคนิค (AI Technical Analysis):")
+                    st.markdown(f"- **โครงสร้าง:** {ai_report['technical']['structure']}")
+                    st.markdown(f"- **สถานะ:** {ai_report['technical']['status']}")
+                    
+                    st.markdown("---")
+                    
+                    st.markdown("### 📚 2. คำอธิบายสถานะรายวัน (Daily Context):")
+                    st.markdown(f"- {ai_report['context']}")
+                    
+                    st.markdown("---")
+                    
+                    st.markdown("### ✅ 3. สรุปสิ่งที่ควรทำ (Action Plan):")
+                    st.markdown(f"🟡 {ai_report['action']['strategy']}")
+                    for idx, step in enumerate(ai_report['action']['steps'], 1):
+                        st.markdown(f"{idx}. {step}")
 
         elif df is not None: st.warning("⚠️ ข้อมูลไม่พอคำนวณ"); st.line_chart(df['Close'])
         else: st.error(f"❌ ไม่พบข้อมูล: {symbol_input}")
