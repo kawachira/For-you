@@ -3,233 +3,137 @@ import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots  # <--- เพิ่มตัวช่วยสร้างกราฟย่อย (ราคา+Volume)
+from plotly.subplots import make_subplots
 
 # --- 1. ตั้งค่าหน้าเว็บ ---
 st.set_page_config(page_title="AI Stock Master", page_icon="💎", layout="wide")
 
-# --- 2. CSS ปรับแต่ง (TradingView Style) ---
+# --- 2. CSS ปรับแต่ง (TradingView Style Theme) ---
 st.markdown("""
     <style>
-    .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; }
-    h1 { text-align: center; font-size: 2.8rem !important; margin-bottom: 10px; }
-    /* ปรับแต่ง Form */
+    .block-container { padding-top: 0.5rem !important; padding-bottom: 0rem !important; }
+    h1 { text-align: center; font-size: 2rem !important; margin-bottom: 10px; color: #d1d4dc; }
+    /* ปรับแต่ง Form ให้มืดและเข้ม */
     div[data-testid="stForm"] {
-        border: none; padding: 20px; border-radius: 15px;
-        background-color: #1e222d; /* สีพื้นหลังแบบ TV */
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        max-width: 800px; margin: 0 auto; color: white;
+        border: 1px solid #2a2e39; padding: 20px; border-radius: 8px;
+        background-color: #1e222d; /* สีพื้นหลัง Form แบบ TV */
+        max-width: 900px; margin: 0 auto; color: #d1d4dc;
     }
+    .stTextInput label, .stSelectbox label { color: #d1d4dc !important; }
     div[data-testid="stFormSubmitButton"] button {
-        width: 100%; border-radius: 8px; font-weight: bold; padding: 12px 0;
+        width: 100%; border-radius: 4px; font-weight: 600; padding: 10px 0;
         background-color: #2962ff; color: white; border: none;
     }
-    div[data-testid="stFormSubmitButton"] button:hover {
-        background-color: #1e54e4;
-    }
+    div[data-testid="stFormSubmitButton"] button:hover { background-color: #1e54e4; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 3. ส่วนหัวข้อ ---
-st.markdown("<h1>💎 Ai<br><span style='font-size: 1.5rem; opacity: 0.7;'>ระบบวิเคราะห์หุ้นอัจฉริยะ</span></h1>", unsafe_allow_html=True)
-st.write("")
+st.markdown("<h1>💎 AI Stock Analysis (TV Style)</h1>", unsafe_allow_html=True)
 
 # --- Form ค้นหา ---
-col_space1, col_form, col_space2 = st.columns([1, 2, 1])
-with col_form:
-    with st.form(key='search_form'):
-        st.markdown("### 🔍 ค้นหาหุ้น (TradingView Style)")
-        c1, c2 = st.columns([3, 1])
-        with c1:
-            symbol_input = st.text_input("ชื่อหุ้น (เช่น AMZN, TSLA):", value="EOSE").upper().strip()
-        with c2:
-            timeframe = st.selectbox("Timeframe:", ["1h", "1d", "1wk"], index=1)
-            if "1wk" in timeframe: tf_code = "1wk"
-            elif "1h" in timeframe: tf_code = "1h"
-            else: tf_code = "1d"
-            
-        submit_btn = st.form_submit_button("🚀 วิเคราะห์กราฟ")
+with st.form(key='search_form'):
+    c1, c2, c3 = st.columns([2, 1, 1])
+    with c1:
+        symbol_input = st.text_input("Symbol (e.g., AMZN, TSLA)", value="EOSE").upper().strip()
+    with c2:
+        timeframe = st.selectbox("Timeframe", ["1h", "1d", "1wk"], index=1)
+        tf_code = "1wk" if "1wk" in timeframe else ("1h" if "1h" in timeframe else "1d")
+    with c3:
+        st.write("") # Spacer
+        st.write("") # Spacer
+        submit_btn = st.form_submit_button("🚀 Load Chart")
 
-# --- 4. Helper Functions ---
-def arrow_html(change):
-    if change is None: return ""
-    return "<span style='color:#089981;font-weight:600'>▲</span>" if change > 0 else "<span style='color:#f23645;font-weight:600'>▼</span>"
-
-def get_rsi_interpretation(rsi):
-    if rsi >= 80: return "🔴 Extreme Overbought"
-    elif rsi >= 70: return "🟠 Overbought"
-    elif rsi >= 55: return "🟢 Bullish Zone"
-    elif rsi >= 45: return "⚪ Neutral"
-    elif rsi >= 30: return "🟠 Bearish Zone"
-    elif rsi > 20: return "🟢 Oversold"
-    else: return "🟢 Extreme Oversold"
-
-def get_pe_interpretation(pe):
-    if isinstance(pe, str) and pe == 'N/A': return "⚪ N/A"
-    if pe < 0: return "🔴 Loss"
-    if pe < 15: return "🟢 Value"
-    if pe < 30: return "🟡 Fair"
-    return "🟠 Growth"
+# --- Helper Functions ---
+def get_rsi_int(rsi):
+    if rsi>=70: return "🔴 Overbought"
+    elif rsi<=30: return "🟢 Oversold"
+    return "⚪ Neutral"
 
 # --- 5. Get Data ---
 @st.cache_data(ttl=60, show_spinner=False)
 def get_data(symbol, interval):
     try:
         ticker = yf.Ticker(symbol)
-        period_val = "730d" if interval == "1h" else "10y"
+        period_val = "730d" if interval == "1h" else "max"
         df = ticker.history(period=period_val, interval=interval)
+        if df.empty: return None, None
         
+        info = ticker.info
+        reg_price = info.get('regularMarketPrice')
+        if reg_price is None: reg_price = df['Close'].iloc[-1]
+
         stock_info = {
-            'longName': ticker.info.get('longName', symbol),
-            'trailingPE': ticker.info.get('trailingPE', 'N/A'),
-            'regularMarketPrice': ticker.info.get('regularMarketPrice'),
-            'regularMarketChange': ticker.info.get('regularMarketChange'),
+            'price': reg_price,
+            'pe': info.get('trailingPE', 'N/A')
         }
-        
-        if stock_info['regularMarketPrice'] is None and not df.empty:
-             stock_info['regularMarketPrice'] = df['Close'].iloc[-1]
-             stock_info['regularMarketChange'] = df['Close'].iloc[-1] - df['Close'].iloc[-2]
-
         return df, stock_info
-    except:
-        return None, None
+    except: return None, None
 
-# --- 6. AI Logic ---
-def analyze_market_structure(price, ema20, ema50, ema200, rsi):
-    status, color, advice = "", "", ""
-    if price > ema200:
-        if price > ema20 and price > ema50:
-            status, color = "Strong Uptrend", "green"
-            advice = "🟢 **BUY / HOLD:** เทรนด์ขาขึ้นแข็งแกร่ง รันเทรนด์ต่อได้"
-        elif price < ema50:
-            status, color = "Correction", "orange"
-            advice = "🟡 **WAIT:** ราคาย่อตัว หาจังหวะเข้าซื้อเมื่อยืนเหนือแนวรับ"
-        else:
-            status, color = "Uptrend", "green"
-            advice = "🟢 **HOLD:** ถือต่อ แนวโน้มยังเป็นขาขึ้น"
-    else:
-        if price < ema20 and price < ema50:
-            status, color = "Strong Downtrend", "red"
-            advice = "🔴 **SELL / AVOID:** ขาลงชัดเจน ห้ามรับมีด"
-        elif price > ema20:
-            status, color = "Recovery", "orange"
-            advice = "🟠 **MONITOR:** พยายามกลับตัว รอเบรค EMA50"
-        else:
-            status, color = "Downtrend", "red"
-            advice = "🔴 **DEFENSIVE:** ตลาดหมี ถือเงินสดปลอดภัยกว่า"
-    return status, color, advice
+# --- AI Logic (Simplified) ---
+def get_ai_signal(price, ema50, ema200):
+    if price > ema200 and price > ema50: return "🟢 BULLISH: Strong Uptrend", "green"
+    if price < ema200 and price < ema50: return "🔴 BEARISH: Strong Downtrend", "red"
+    return "⚪ NEUTRAL: Sideway / Consolidation", "orange"
 
 # --- 7. Display ---
 if submit_btn:
     st.divider()
-    with st.spinner(f"กำลังโหลดกราฟ {symbol_input} ..."):
+    with st.spinner(f"Loading {symbol_input} chart..."):
         df, info = get_data(symbol_input, tf_code)
 
-        if df is not None and not df.empty and len(df) > 200:
-            # Calculate Indicators
-            df['EMA20'] = ta.ema(df['Close'], length=20)
+        if df is not None and not df.empty and len(df) > 100:
+            # Indicators
             df['EMA50'] = ta.ema(df['Close'], length=50)
             df['EMA200'] = ta.ema(df['Close'], length=200)
             df['RSI'] = ta.rsi(df['Close'], length=14)
             
             last = df.iloc[-1]
-            price = info['regularMarketPrice'] if info['regularMarketPrice'] else last['Close']
-            ema20=last['EMA20']; ema50=last['EMA50']; ema200=last['EMA200']; rsi=last['RSI']
-            ai_status, ai_color, ai_advice = analyze_market_structure(price, ema20, ema50, ema200, rsi)
+            price = info['price']
+            ai_txt, ai_col = get_ai_signal(price, last['EMA50'], last['EMA200'])
 
-            # Header Info
-            st.markdown(f"<h2 style='text-align: center;'>{symbol_input} </h2>", unsafe_allow_html=True)
-            
-            # Price Banner
-            reg_price = info.get('regularMarketPrice')
-            reg_chg = info.get('regularMarketChange')
-            pct_chg = (reg_chg / (reg_price - reg_chg) * 100) if reg_price and reg_chg else 0
-            
-            color_text = "#089981" if reg_chg > 0 else "#f23645" # TV Green/Red
-            
+            # Price Header
             st.markdown(f"""
-            <div style="text-align:center; margin-bottom: 20px;">
-              <span style="font-size:48px; font-weight:bold; color:white;">{reg_price:,.2f}</span>
-              <span style="font-size:24px; color:{color_text}; margin-left:10px;">
-                {reg_chg:+.2f} ({pct_chg:.2f}%)
-              </span>
+            <div style="text-align:center; margin-bottom: 15px;">
+              <span style="font-size:36px; font-weight:bold; color:#d1d4dc;">{symbol_input}</span>
+              <br>
+              <span style="font-size:28px; color:white;">{price:,.2f}</span>
             </div>
             """, unsafe_allow_html=True)
 
             # ==================================================
-            # 🔥🔥 กราฟ TradingView Style (ใหม่) 🔥🔥
+            # 🔥🔥 กราฟ TradingView Style (แก้ไขการซูม) 🔥🔥
             # ==================================================
             
-            # 1. สร้าง Subplots (บน=ราคา, ล่าง=Volume)
+            # 1. Create Subplots (Price & Volume)
             fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
-                                vertical_spacing=0.03, subplot_titles=('Price', 'Volume'), 
-                                row_width=[0.2, 0.7]) # ราคาเอาไป 70%, Volume 20%
+                                vertical_spacing=0.02, row_width=[0.2, 0.8])
 
-            # 2. แท่งเทียน (Candlestick) สีแบบ TradingView เป๊ะๆ
+            # 2. Candlestick (TV Colors)
             fig.add_trace(go.Candlestick(
                 x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
                 name='Price',
-                increasing_line_color='#089981', increasing_fillcolor='#089981', # เขียว TV
-                decreasing_line_color='#f23645', decreasing_fillcolor='#f23645'  # แดง TV
+                increasing_line_color='#089981', increasing_fillcolor='#089981', # TV Green
+                decreasing_line_color='#f23645', decreasing_fillcolor='#f23645'  # TV Red
             ), row=1, col=1)
 
-            # 3. เส้น EMA (ทำให้เส้นคมๆ)
-            fig.add_trace(go.Scatter(x=df.index, y=df['EMA20'], mode='lines', name='EMA 20', line=dict(color='#fbbf24', width=1)), row=1, col=1)
+            # 3. EMAs
             fig.add_trace(go.Scatter(x=df.index, y=df['EMA50'], mode='lines', name='EMA 50', line=dict(color='#2962ff', width=1.5)), row=1, col=1)
-            fig.add_trace(go.Scatter(x=df.index, y=df['EMA200'], mode='lines', name='EMA 200', line=dict(color='#d1d4dc', width=2, dash='dot')), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df.index, y=df['EMA200'], mode='lines', name='EMA 200', line=dict(color='#fbbf24', width=2)), row=1, col=1)
 
-            # 4. Volume (สีตามแท่งเทียน: ปิดบวก=เขียว, ปิดลบ=แดง)
+            # 4. Volume
             vol_colors = ['#089981' if c >= o else '#f23645' for c, o in zip(df['Close'], df['Open'])]
-            fig.add_trace(go.Bar(
-                x=df.index, y=df['Volume'], name='Volume', marker_color=vol_colors
-            ), row=2, col=1)
+            fig.add_trace(go.Bar(x=df.index, y=df['Volume'], name='Volume', marker_color=vol_colors), row=2, col=1)
 
-            # 5. จัด Layout ให้เหมือนแอป TradingView Dark Mode
+            # 5. Layout Setup (หัวใจสำคัญของการซูม)
             fig.update_layout(
-                height=600, # ความสูงกราฟ
-                margin=dict(l=10, r=10, t=30, b=10),
-                paper_bgcolor='#131722', # สีพื้นหลังเข้มแบบ TV
+                height=550,
+                margin=dict(l=0, r=0, t=10, b=0), # ลดขอบให้สุด
+                paper_bgcolor='#131722', # พื้นหลัง TV
                 plot_bgcolor='#131722',
-                font=dict(color='#d1d4dc'), # สีตัวอักษร
-                xaxis_rangeslider_visible=False, # ปิดตัวเลื่อนด้านล่าง (เกะกะบนมือถือ)
-                dragmode='pan', # โหมดเลื่อนกราฟเป็นหลัก (ใช้นิ้วถูได้เลย)
-                showlegend=False, # ซ่อน Legend ไม่ให้รก
-                hovermode='x unified' # เส้น Crosshair แนวตั้ง
-            )
-            
-            # ปรับแต่งเส้นตาราง (Grid) ให้จางๆ แบบมือโปร
-            fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#2a2e39')
-            fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#2a2e39')
-
-            # แสดงกราฟ
-            st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displayModeBar': False})
-            
-            # ==================================================
-
-            # AI Status Box
-            if ai_color == "green": st.success(f"📈 {ai_status}\n\n{ai_advice}")
-            elif ai_color == "red": st.error(f"📉 {ai_status}\n\n{ai_advice}")
-            else: st.warning(f"⚖️ {ai_status}\n\n{ai_advice}")
-
-            # Metrics & Analysis Details (เหมือนเดิม)
-            c_ema, c_ai = st.columns(2)
-            with c_ema:
-                st.markdown(f"""
-                <div style='background-color: #1e222d; padding: 15px; border-radius: 10px; color: white;'>
-                    <h4 style='margin:0'>📉 Key Levels</h4>
-                    <p style='color: #fbbf24;'>EMA 20: {ema20:.2f}</p>
-                    <p style='color: #2962ff;'>EMA 50: {ema50:.2f}</p>
-                    <p style='color: #d1d4dc;'>EMA 200: {ema200:.2f}</p>
-                </div>
-                """, unsafe_allow_html=True)
-            with c_ai:
-                st.markdown(f"""
-                <div style='background-color: #1e222d; padding: 15px; border-radius: 10px; color: white;'>
-                    <h4 style='margin:0'>⚡ Indicators</h4>
-                    <p>RSI (14): <b>{rsi:.2f}</b> ({get_rsi_interpretation(rsi)})</p>
-                    <p>P/E: {info['trailingPE']}</p>
-                </div>
-                """, unsafe_allow_html=True)
-
-        elif df is not None: st.warning("⚠️ ข้อมูลไม่พอคำนวณ")
-        else: st.error(f"❌ ไม่พบข้อมูล: {symbol_input}")
+                font=dict(color='#d1d4dc'),
+                showlegend=False,
+                dragmode='pan', # โหมดจับลาก
+                hovermode='x unified',
+                
+                # --- ส่วนสำคัญที่เพิ่มมา: ล็อกแกน Y เพื่อให้ซูมได้
