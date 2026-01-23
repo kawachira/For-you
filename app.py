@@ -60,8 +60,9 @@ def get_rsi_interpretation(rsi):
     else: return "🟢 **Extreme Oversold (<20):** ลงลึกมาก Panic Sell จบแล้ว"
 
 def get_pe_interpretation(pe):
-    if isinstance(pe, str) and pe == 'N/A': return "⚪ N/A"
-    if pe < 0: return "🔴 ขาดทุน"
+    # ปรับปรุงคำอธิบายตรงนี้ครับ
+    if isinstance(pe, str) and pe == 'N/A': return "⚪ N/A (บริษัทอาจขาดทุน/ไม่มีกำไร)"
+    if pe < 0: return "🔴 ขาดทุน (Earnings ติดลบ)"
     if pe < 15: return "🟢 หุ้นถูก (Value)"
     if pe < 30: return "🟡 ราคาเหมาะสม"
     return "🟠 หุ้นแพง (Growth)"
@@ -320,8 +321,8 @@ if submit_btn:
                     for idx, step in enumerate(ai_report['action']['steps'], 1):
                         st.markdown(f"{idx}. {step}")
 
-            # --- ส่วนที่เพิ่มเข้ามา: พื้นที่ว่าง 200px ด้านล่างกันโดนบัง ---
-            st.markdown("<div style='height: 200px;'></div>", unsafe_allow_html=True)
+            # --- ปรับลดพื้นที่ว่างให้เหลือ 100px (จากเดิม 200px) ---
+            st.markdown("<div style='height: 100px;'></div>", unsafe_allow_html=True)
 
         elif df is not None: st.warning("⚠️ ข้อมูลไม่พอคำนวณ"); st.line_chart(df['Close'])
         else: st.error(f"❌ ไม่พบข้อมูล: {symbol_input}")
