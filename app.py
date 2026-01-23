@@ -2,6 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
+import plotly.graph_objects as go  # <--- 1. เพิ่มบรรทัดนี้
 
 # --- 1. ตั้งค่าหน้าเว็บ ---
 st.set_page_config(page_title="AI Stock Master", page_icon="💎", layout="wide")
@@ -218,7 +219,31 @@ if submit_btn:
                 st.metric("⚡ RSI (14)", f"{rsi:.2f}", rsi_lbl, delta_color="inverse" if rsi>70 else "normal")
                 st.caption(get_rsi_interpretation(rsi))
 
-            st.write("") 
+            st.write("")
+            
+            # --- 2. ส่วนที่เพิ่ม: กราฟแท่งเทียน ---
+            st.subheader(f"🕯️ กราฟราคา {symbol_input} (และเส้น EMA)")
+            
+            fig = go.Figure()
+            # แท่งเทียน
+            fig.add_trace(go.Candlestick(
+                x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='Price'
+            ))
+            # เส้น EMA ที่มีอยู่แล้วในโค้ด
+            fig.add_trace(go.Scatter(x=df.index, y=df['EMA20'], mode='lines', name='EMA 20', line=dict(color='#fbbf24', width=1)))
+            fig.add_trace(go.Scatter(x=df.index, y=df['EMA50'], mode='lines', name='EMA 50', line=dict(color='#f97316', width=1)))
+            fig.add_trace(go.Scatter(x=df.index, y=df['EMA200'], mode='lines', name='EMA 200', line=dict(color='#2563eb', width=2)))
+            
+            fig.update_layout(
+                xaxis_rangeslider_visible=False, 
+                height=500, 
+                margin=dict(l=10, r=10, t=10, b=10),
+                paper_bgcolor='rgba(0,0,0,0)', # พื้นหลังใสเพื่อให้เข้ากับ Theme
+                plot_bgcolor='rgba(0,0,0,0)',
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            # ---------------------------------------
 
             # Analysis Section
             c_ema, c_ai = st.columns([1.5, 1.5])
