@@ -97,14 +97,8 @@ def get_data(symbol, interval):
     except:
         return None, None
 
-# --- 6. AI Logic (UPDATED: Detailed Report) ---
+# --- 6. AI Logic ---
 def analyze_market_structure(price, ema20, ema50, ema200, rsi):
-    """
-    สร้างรายงาน AI Intelligent Report 3 ส่วน:
-    1. บทวิเคราะห์ทางเทคนิค
-    2. คำอธิบายสถานะรายวัน
-    3. สรุปสิ่งที่ควรทำ
-    """
     report = {
         "technical": {},
         "context": "",
@@ -126,7 +120,7 @@ def analyze_market_structure(price, ema20, ema50, ema200, rsi):
         action_1 = "ถือต่อ (Hold) อย่าเพิ่งรีบขายหมู จนกว่ากราฟจะเสียทรง"
         action_2 = f"ใช้เส้น **EMA 20 ({ema20:.2f})** เป็นจุด Trailing Stop เลื่อนตามราคาไปเรื่อยๆ"
         
-        if rsi > 75: # Warning case
+        if rsi > 75: 
             report["context"] += " (แต่ระวัง RSI สูงเกินไป อาจมีการพักตัวระยะสั้น)"
             action_1 = "ถือต่อ แต่เริ่มแบ่งขายทำกำไรบางส่วน (Take Profit) เมื่อราคาพุ่งแรงผิดปกติ"
 
@@ -146,7 +140,7 @@ def analyze_market_structure(price, ema20, ema50, ema200, rsi):
         action_1 = "Wait & See: รอดูว่ายืนเหนือเส้น EMA 50 ได้หรือไม่"
         action_2 = f"ตั้งจุดรอรับบริเวณ **EMA 50 ({ema50:.2f})** ถ้ารับอยู่คือโอกาสทองในการสะสมเพิ่ม"
         
-        if price < ema50: # Deep correction
+        if price < ema50: 
              action_2 = f"ระวัง! ราคาหลุด EMA 50 ลงมา แนวรับถัดไปคือ EMA 200 ({ema200:.2f}) ชะลอการซื้อ"
 
         report["action"] = {"strategy": strategy, "steps": [action_1, action_2]}
@@ -165,7 +159,7 @@ def analyze_market_structure(price, ema20, ema50, ema200, rsi):
         action_1 = "ห้ามรับมีด! (Don't catch a falling knife) รอให้ราคาหยุดลงและสร้างฐานก่อน"
         action_2 = f"ใครมีของพิจารณาตัดขาดทุน (Stop Loss) หรืออาศัยจังหวะเด้งเพื่อขายออก ลดความเสี่ยง"
         
-        if rsi < 25: # Oversold bounce
+        if rsi < 25: 
             strategy = "**กลยุทธ์: Speculative Buy (เก็งกำไรสั้นๆ)**"
             report["context"] += " (แต่ RSI ต่ำมาก อาจมีเด้งสั้นๆ เร็วๆ นี้)"
             action_1 = "เสี่ยงซื้อเล่นเด้งสั้นๆ (Oversold Bounce) เข้าไวออกไว"
@@ -206,7 +200,6 @@ if submit_btn:
             rsi = last['RSI']
             ema20=last['EMA20']; ema50=last['EMA50']; ema200=last['EMA200']
             
-            # เรียกใช้ฟังก์ชัน AI ใหม่
             ai_report = analyze_market_structure(price, ema20, ema50, ema200, rsi)
 
             # Header
@@ -218,14 +211,12 @@ if submit_btn:
                 reg_price = info.get('regularMarketPrice')
                 reg_chg = info.get('regularMarketChange')
                 
-                # --- แก้ไขการคำนวณ % ราคาปัจจุบัน ---
                 if reg_price and reg_chg:
                     prev_c = reg_price - reg_chg
                     if prev_c != 0:
                         reg_pct = (reg_chg / prev_c) * 100
                     else: reg_pct = 0.0
                 else: reg_pct = 0.0
-                # --------------------------------------------------------
                 
                 color_text = "#16a34a" if reg_chg and reg_chg > 0 else "#dc2626"
                 bg_color = "#e8f5ec" if reg_chg and reg_chg > 0 else "#fee2e2"
@@ -266,7 +257,7 @@ if submit_btn:
             else: tf_label = "TF Day (รายวัน)"
             
             st_color = ai_report["status_color"]
-            main_status = ai_report["technical"]["structure"].split("(")[0] # ดึงเฉพาะข้อความสั้นๆ
+            main_status = ai_report["technical"]["structure"].split("(")[0]
             
             if st_color == "green": c2.success(f"📈 {main_status}\n\n**{tf_label}**")
             elif st_color == "red": c2.error(f"📉 {main_status}\n\n**{tf_label}**")
@@ -285,7 +276,7 @@ if submit_btn:
             st.write("") 
 
             # Analysis Section & AI Report
-            c_ema, c_ai = st.columns([1.5, 2]) # ปรับขนาดคอลัมน์ให้ AI กว้างขึ้น
+            c_ema, c_ai = st.columns([1.5, 2])
             with c_ema:
                 st.subheader("📉 ค่าเส้นค่าเฉลี่ย (EMA)")
                 st.markdown(f"""
@@ -312,7 +303,6 @@ if submit_btn:
 
             with c_ai:
                 st.subheader("🤖 AI INTELLIGENT REPORT")
-                # แสดงผลแบบกล่อง Chat เหมือนเดิม แต่จัด Format ใหม่ตามรูป
                 with st.chat_message("assistant"):
                     st.markdown("### 🧠 1. บทวิเคราะห์ทางเทคนิค (AI Technical Analysis):")
                     st.markdown(f"- **โครงสร้าง:** {ai_report['technical']['structure']}")
@@ -329,6 +319,9 @@ if submit_btn:
                     st.markdown(f"🟡 {ai_report['action']['strategy']}")
                     for idx, step in enumerate(ai_report['action']['steps'], 1):
                         st.markdown(f"{idx}. {step}")
+
+            # --- ส่วนที่เพิ่มเข้ามา: พื้นที่ว่าง 200px ด้านล่างกันโดนบัง ---
+            st.markdown("<div style='height: 200px;'></div>", unsafe_allow_html=True)
 
         elif df is not None: st.warning("⚠️ ข้อมูลไม่พอคำนวณ"); st.line_chart(df['Close'])
         else: st.error(f"❌ ไม่พบข้อมูล: {symbol_input}")
