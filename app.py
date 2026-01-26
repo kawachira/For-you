@@ -35,7 +35,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 3. ส่วนหัวข้อ ---
-st.markdown("<h1>💎 Ai<br><span style='font-size: 1.5rem; opacity: 0.7;'>ระบบวิเคราะห์หุ้นอัจฉริยะ (Hybrid Sniper)</span></h1>", unsafe_allow_html=True)
+st.markdown("<h1>💎 Ai<br><span style='font-size: 1.5rem; opacity: 0.7;'>ระบบวิเคราะห์หุ้นอัจฉริยะ (Technical Pure)</span></h1>", unsafe_allow_html=True)
 
 # --- Form ค้นหา ---
 col_space1, col_form, col_space2 = st.columns([1, 2, 1])
@@ -47,6 +47,7 @@ with col_form:
             symbol_input = st.text_input("ชื่อหุ้น (เช่น AMZN,EOSE,RKLB,TSLA)🪐", value="").upper().strip()
         with c2:
             timeframe = st.selectbox("Timeframe:", ["1h (รายชั่วโมง)", "1d (รายวัน)", "1wk (รายสัปดาห์)"], index=1)
+            # Logic การจับคู่ Timeframe
             if "1wk" in timeframe: tf_code = "1wk"; mtf_code = "1mo"
             elif "1h" in timeframe: tf_code = "1h"; mtf_code = "1d"
             else: tf_code = "1d"; mtf_code = "1wk"
@@ -85,6 +86,7 @@ def custom_metric_html(label, value, status_text, color_status, icon_svg):
     return html
 
 def get_rsi_interpretation(rsi):
+    if np.isnan(rsi): return "N/A"
     if rsi >= 70: return "Overbought (ระวังแรงขาย)"
     elif rsi >= 55: return "Bullish (กระทิงแข็งแกร่ง)"
     elif rsi >= 45: return "Sideway/Neutral (รอเลือกทาง)"
@@ -93,38 +95,47 @@ def get_rsi_interpretation(rsi):
 
 def get_pe_interpretation(pe):
     if isinstance(pe, str) and pe == 'N/A': return "N/A"
+    if pe is None: return "N/A"
     if pe < 0: return "ขาดทุน (Loss)"
     if pe < 15: return "หุ้นถูก (Value)"
     if pe < 30: return "ราคาเหมาะสม (Fair)"
     return "หุ้นแพง (Growth)"
 
 def get_adx_interpretation(adx, is_uptrend):
+    if np.isnan(adx): return "N/A"
     trend_str = "ขาขึ้น" if is_uptrend else "ขาลง"
     if adx >= 50: return f"Super Strong {trend_str} (แรงมาก)"
     if adx >= 25: return f"Strong {trend_str} (แข็งแกร่ง)"
     if adx >= 20: return "Developing Trend (เริ่มก่อตัว)"
     return "Weak/Sideway (ตลาดไร้ทิศทาง)"
 
-# ✅ Smart Logic: ฟังก์ชันอธิบายแบบมนุษย์
 def get_detailed_explanation(adx, rsi, macd_val, macd_signal, price, ema200):
-    is_uptrend = price > ema200
+    if np.isnan(ema200):
+        is_uptrend = True 
+        trend_context = "ไม่สามารถยืนยันเทรนด์ได้ (ข้อมูล EMA 200 ไม่เพียงพอ)"
+    else:
+        is_uptrend = price > ema200
+        
     is_bullish_momentum = macd_val > macd_signal
     
-    if is_uptrend and is_bullish_momentum:
-        trend_context = "ขาขึ้นเต็มตัว (Uptrend) และมีแรงส่งที่ดี"
-    elif is_uptrend and not is_bullish_momentum:
-        trend_context = "ขาขึ้น (Uptrend) แต่ระยะสั้นกำลังพักตัว/ย่อตัว (Correction)"
-    elif not is_uptrend and not is_bullish_momentum:
-        trend_context = "ขาลงเต็มตัว (Downtrend) แรงขายยังกดดันต่อเนื่อง"
-    else: 
-        trend_context = "ขาลง (Downtrend) แต่เริ่มมีการดีดกลับระยะสั้น (Rebound)"
+    if not np.isnan(ema200):
+        if is_uptrend and is_bullish_momentum:
+            trend_context = "ขาขึ้นเต็มตัว (Uptrend) และมีแรงส่งที่ดี"
+        elif is_uptrend and not is_bullish_momentum:
+            trend_context = "ขาขึ้น (Uptrend) แต่ระยะสั้นกำลังพักตัว/ย่อตัว (Correction)"
+        elif not is_uptrend and not is_bullish_momentum:
+            trend_context = "ขาลงเต็มตัว (Downtrend) แรงขายยังกดดันต่อเนื่อง"
+        else: 
+            trend_context = "ขาลง (Downtrend) แต่เริ่มมีการดีดกลับระยะสั้น (Rebound)"
         
-    if adx >= 50: adx_explain = f"🔥 **ความแรงเทรนด์:** รุนแรงมาก! ตลาดกำลังอยู่ในสภาวะ '{trend_context}' อย่างหนักหน่วง"
+    if np.isnan(adx): adx_explain = "⚠️ **ADX:** คำนวณไม่ได้ (ข้อมูลไม่เพียงพอ)"
+    elif adx >= 50: adx_explain = f"🔥 **ความแรงเทรนด์:** รุนแรงมาก! ตลาดกำลังอยู่ในสภาวะ '{trend_context}' อย่างหนักหน่วง"
     elif adx >= 25: adx_explain = f"💪 **ความแรงเทรนด์:** แข็งแกร่ง! ทิศทางชัดเจนว่าเป็น '{trend_context}' ไม่ใช่การแกว่งมั่วๆ"
     elif adx >= 20: adx_explain = f"🌱 **ความแรงเทรนด์:** กำลังก่อตัว... เริ่มเห็นทรงว่าเป็น '{trend_context}'"
     else: adx_explain = f"😴 **ความแรงเทรนด์:** ตลาดไร้ทิศทาง (Sideway) แรงซื้อขายยังไม่เลือกทางชัดเจน"
 
-    if rsi >= 70: rsi_explain = "⚠️ **RSI (Overbought):** ราคาขึ้นมาสูงจน 'ตึงมือ' ระวังคนเทขายใส่"
+    if np.isnan(rsi): rsi_explain = "⚠️ **RSI:** คำนวณไม่ได้"
+    elif rsi >= 70: rsi_explain = "⚠️ **RSI (Overbought):** ราคาขึ้นมาสูงจน 'ตึงมือ' ระวังคนเทขายใส่"
     elif rsi <= 30: rsi_explain = "💎 **RSI (Oversold):** ราคาลงมาลึกจน 'เริ่มถูก' อาจมีเด้งสั้นๆ"
     else: rsi_explain = "⚖️ **RSI (Neutral):** ราคาสมเหตุสมผล ซื้อขายกันตามปกติ"
 
@@ -136,7 +147,7 @@ def get_detailed_explanation(adx, rsi, macd_val, macd_signal, price, ema200):
     return adx_explain, rsi_explain, macd_explain, trend_context
 
 def display_learning_section(rsi, rsi_interp, macd_val, macd_signal, macd_interp, adx_val, price, ema200, bb_upper, bb_lower):
-    is_up = price >= ema200
+    is_up = price >= ema200 if not np.isnan(ema200) else True
     adx_interp = get_adx_interpretation(adx_val, is_up)
     
     st.markdown("### 📘 มุมความรู้: ค่าต่างๆ คืออะไร? มาจากไหน?")
@@ -156,6 +167,7 @@ def display_learning_section(rsi, rsi_interp, macd_val, macd_signal, macd_interp
 def filter_levels(levels, threshold_pct=0.015):
     selected = []
     for val, label in levels:
+        if np.isnan(val): continue
         if not selected: selected.append((val, label))
         else:
             last_val = selected[-1][0]
@@ -163,15 +175,24 @@ def filter_levels(levels, threshold_pct=0.015):
             if diff > threshold_pct: selected.append((val, label))
     return selected
 
-# --- 5. Data Fetching ---
+# --- 5. Data Fetching (Smart Logic - No News) ---
 @st.cache_data(ttl=10, show_spinner=False)
 def get_data_hybrid(symbol, interval, mtf_interval):
     try:
         ticker = yf.Ticker(symbol)
-        period_val = "730d" if interval == "1h" else "10y"
+        
+        # ✅ SMART SELECTION: เลือกช่วงเวลาตามความเหมาะสม
+        if interval == "1wk":
+            period_val = "10y"  # Week: 10 ปี
+        elif interval == "1d":
+            period_val = "5y"   # Day: 5 ปี
+        else: # 1h
+            period_val = "730d" # Hour: 2 ปี
+
         df = ticker.history(period=period_val, interval=interval)
-        df_mtf = ticker.history(period="5y", interval=mtf_interval)
-        news = ticker.news
+        df_mtf = ticker.history(period="10y", interval=mtf_interval) # MTF ดึง 10 ปีเสมอ (EMA 200 Week)
+        # ❌ ตัดการดึงข่าวออก (News Removed)
+        
         stock_info = {
             'longName': ticker.info.get('longName', symbol),
             'marketState': ticker.info.get('marketState', 'UNKNOWN'),
@@ -194,73 +215,66 @@ def get_data_hybrid(symbol, interval, mtf_interval):
              stock_info['regularMarketPrice'] = df['Close'].iloc[-1]
              stock_info['regularMarketChange'] = df['Close'].iloc[-1] - df['Close'].iloc[-2]
              stock_info['regularMarketChangePercent'] = (stock_info['regularMarketChange'] / df['Close'].iloc[-2])
-        return df, stock_info, df_mtf, news
+        return df, stock_info, df_mtf
     except:
-        return None, None, None, None
+        return None, None, None
 
-# --- 6. Analysis Logic ---
+# --- 6. Analysis Logic (No News) ---
 def analyze_volume(row, vol_ma):
     vol = row['Volume']
-    if vol > vol_ma * 1.5: return "High Volume (วอลุ่มเข้า)", "green"
-    elif vol < vol_ma * 0.7: return "Low Volume (เหือดแห้ง)", "red"
-    else: return "Normal Volume (ปกติ)", "gray"
+    if np.isnan(vol_ma): return "Normal Volume", "gray"
+    if vol > vol_ma * 1.5: return "High Volume", "green"
+    elif vol < vol_ma * 0.7: return "Low Volume", "red"
+    else: return "Normal Volume", "gray"
 
-def analyze_news_sentiment(news_list):
-    if not news_list: return "No News", 0
-    score = 0
-    bullish_keywords = ['soar', 'jump', 'surge', 'beat', 'profit', 'growth', 'buy', 'strong', 'record', 'up']
-    bearish_keywords = ['drop', 'fall', 'plunge', 'miss', 'loss', 'down', 'sell', 'weak', 'crash', 'risk']
-    for item in news_list[:5]:
-        title = item.get('title', '').lower()
-        for w in bullish_keywords: 
-            if w in title: score += 1
-        for w in bearish_keywords: 
-            if w in title: score -= 1
-    return score
-
-# --- 7. AI Decision Engine ---
+# --- 7. AI Decision Engine (Master Logic - No News Score) ---
 def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx, bb_up, bb_low, 
-                       vol_status, mtf_trend, news_score, atr_val):
+                       vol_status, mtf_trend, atr_val, mtf_ema200_val):
     score = 0
     bullish_factors = [] 
     bearish_factors = []
     
-    # 1. Trend
-    if price > ema200:
-        score += 3
-        bullish_factors.append("ราคาอยู่เหนือเส้น EMA 200 (เทรนด์หลักขาขึ้น)")
-        if price > ema20:
-            score += 1
-            bullish_factors.append("ราคายืนเหนือ EMA 20 (ระยะสั้นแข็งแกร่ง)")
+    # 1. Trend Analysis
+    if not np.isnan(ema200):
+        if price > ema200:
+            score += 3
+            bullish_factors.append("ราคาอยู่เหนือเส้น EMA 200 (เทรนด์หลักขาขึ้น)")
+            if not np.isnan(ema20) and price > ema20:
+                score += 1
+                bullish_factors.append("ราคายืนเหนือ EMA 20 (ระยะสั้นแข็งแกร่ง)")
+            elif not np.isnan(ema20):
+                bearish_factors.append("ระยะสั้นหลุด EMA 20 (มีการพักตัวในขาขึ้น)")
         else:
-            bearish_factors.append("ระยะสั้นหลุด EMA 20 (มีการพักตัวในขาขึ้น)")
+            score -= 3
+            bearish_factors.append("ราคาอยู่ใต้เส้น EMA 200 (เทรนด์หลักขาลง)")
+            if not np.isnan(ema20) and price < ema20:
+                bearish_factors.append("ราคาอยู่ใต้ EMA 20 (แรงขายระยะสั้นยังกดดัน)")
+            elif not np.isnan(ema20):
+                bullish_factors.append("ราคาดีดกลับมายืนเหนือ EMA 20 ได้ (ลุ้น Rebound)")
     else:
-        score -= 3
-        bearish_factors.append("ราคาอยู่ใต้เส้น EMA 200 (เทรนด์หลักขาลง)")
-        if price < ema20:
-            bearish_factors.append("ราคาอยู่ใต้ EMA 20 (แรงขายระยะสั้นยังกดดัน)")
-        else:
-            bullish_factors.append("ราคาดีดกลับมายืนเหนือ EMA 20 ได้ (ลุ้น Rebound)")
+        bullish_factors.append("ข้อมูลกราฟไม่เพียงพอสำหรับ EMA 200")
 
     # 2. Momentum
-    if macd_val > macd_sig:
-        score += 1
-        bullish_factors.append("MACD ตัดขึ้น (โมเมนตัมบวก)")
-    else:
-        score -= 1
-        bearish_factors.append("MACD ตัดลง (โมเมนตัมลบ/แรงส่งแผ่ว)")
+    if not np.isnan(macd_val) and not np.isnan(macd_sig):
+        if macd_val > macd_sig:
+            score += 1
+            bullish_factors.append("MACD ตัดขึ้น (โมเมนตัมบวก)")
+        else:
+            score -= 1
+            bearish_factors.append("MACD ตัดลง (โมเมนตัมลบ/แรงส่งแผ่ว)")
 
-    # 3. MTF
+    # 3. MTF Logic (Fix: Use EMA 200)
+    mtf_label = "Week" if mtf_trend != "Unknown" else "MTF"
     if mtf_trend == "Bullish":
         score += 2
-        bullish_factors.append("Timeframe ใหญ่ (Week/Month) เป็นขาขึ้นช่วยหนุน")
+        bullish_factors.append(f"ภาพใหญ่ ({mtf_label}) ยืนเหนือ EMA 200 เป็นขาขึ้นช่วยหนุน")
     elif mtf_trend == "Bearish":
         score -= 2
-        bearish_factors.append("Timeframe ใหญ่ (Week/Month) ยังเป็นขาลงกดดันภาพรวม")
+        bearish_factors.append(f"ภาพใหญ่ ({mtf_label}) อยู่ใต้ EMA 200 เป็นขาลงกดดันภาพรวม")
 
     # 4. Volume
     if "High Volume" in vol_status:
-        if price > ema20: 
+        if not np.isnan(ema20) and price > ema20: 
             score += 1
             bullish_factors.append("มีวอลุ่มซื้อเข้ามาสนับสนุนอย่างหนาแน่น")
         else:
@@ -270,51 +284,82 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
         bearish_factors.append("วอลุ่มเบาบาง (ตลาดขาดความสนใจ)")
 
     # 5. RSI
-    if rsi > 70:
-        bearish_factors.append(f"RSI สูงระดับ {rsi:.0f} (Overbought) ระวังแรงเทขายทำกำไร")
-    elif rsi < 30:
-        bullish_factors.append(f"RSI ต่ำระดับ {rsi:.0f} (Oversold) ราคาเริ่มถูก อาจมีเด้งสั้น")
+    if not np.isnan(rsi):
+        if rsi > 70:
+            bearish_factors.append(f"RSI สูงระดับ {rsi:.0f} (Overbought) ระวังแรงเทขายทำกำไร")
+        elif rsi < 30:
+            bullish_factors.append(f"RSI ต่ำระดับ {rsi:.0f} (Oversold) ราคาเริ่มถูก อาจมีเด้งสั้น")
 
     # --- Strategy Generator ---
     status_color = "yellow"
-    banner_title = "Sideway: รอเลือกทาง"
-    strategy_text = "Wait & See (รอดูไปก่อน)"
+    banner_title = ""
+    strategy_text = ""
     context_text = ""
     holder_advice = ""
 
-    sl = price - (2 * atr_val)
-    tp = price + (3 * atr_val)
-
-    if score >= 5:
+    # เตรียมตัวแปรราคาสำหรับโชว์ในข้อความ (Price Embedding)
+    e20_str = f"{ema20:,.2f}" if not np.isnan(ema20) else "N/A"
+    sl_val = price - (2 * atr_val) if not np.isnan(atr_val) else price * 0.95
+    tp_val = price + (3 * atr_val) if not np.isnan(atr_val) else price * 1.05
+    sl_str = f"{sl_val:,.2f}"
+    
+    # Logic 7 Levels
+    if score >= 6:
         status_color = "green"
-        banner_title = "🚀 Super Bullish: ขาขึ้นสมบูรณ์แบบ"
-        strategy_text = "Strong Buy / Let Profit Run (ถือต่อ/ซื้อเพิ่ม)"
-        context_text = "ตลาดอยู่ในสภาวะ 'กระทิงดุ' เทรนด์แข็งแกร่งทุกระยะ วอลุ่มและภาพใหญ่สนับสนุนเต็มที่"
-        holder_advice = "🥳 **Let Profit Run:** ถือต่อยาวๆ ได้เลย เลื่อนจุด Stop Loss ขึ้นมาบังทุน (Trailing Stop) ไม่ต้องรีบขายหมู จนกว่าเทรนด์จะเปลี่ยน"
+        banner_title = "🚀 Super Nova: กระทิงดุขั้นสุด"
+        strategy_text = "Aggressive Buy / Let Profit Run"
+        context_text = "ตลาดเข้าสู่สภาวะ 'Euphoria' (ตื่นตัวสุดขีด) ทุก Timeframe เป็นขาขึ้น วอลุ่มซื้อถล่มทลาย ไม่มีแนวต้านขวางกั้น"
+        holder_advice = f"🎉 **Jackpot:** กอดหุ้นไว้ให้แน่นที่สุด! อย่าเพิ่งรีบขายหมู ใช้ Trailing Stop (โซน {sl_str}) เกาะเทรนด์ไปเรื่อยๆ จนกว่าเทรนด์จะหักหัวลง"
+
+    elif score >= 4:
+        status_color = "green"
+        banner_title = "🐂 Strong Bullish: ขาขึ้นแข็งแกร่ง"
+        strategy_text = "Strong Buy (ซื้อเพิ่ม/ถือต่อ)"
+        context_text = "เทรนด์หลักและรองเป็นขาขึ้นชัดเจน โมเมนตัมเป็นบวก แต่อาจมีความร้อนแรงน้อยกว่าระดับสูงสุดเล็กน้อย"
+        holder_advice = f"🥳 **Enjoy the ride:** ถือต่อได้อย่างสบายใจ แนวโน้มยังไปต่อได้อีกไกล ถ้ามีย่อตัวใกล้ EMA 20 ({e20_str}) ถือเป็นโอกาสในการเก็บเพิ่ม (Pyramiding)"
+
     elif score >= 2:
         status_color = "green"
-        banner_title = "Bullish: แนวโน้มขาขึ้น"
+        banner_title = "📈 Moderate Bullish: ขาขึ้นแบบค่อยเป็นค่อยไป"
         strategy_text = "Buy on Dip (ย่อซื้อสะสม)"
-        context_text = "ภาพรวมเป็นขาขึ้น แต่อาจมีแรงขายทำกำไรระยะสั้นบ้าง ไม่ใช่เรื่องน่ากังวล หาจังหวะย่อซื้อ"
-        holder_advice = "🙂 **Hold:** ถือต่อได้สบายใจ แต่ถ้าหลุดเส้น EMA 20 ให้แบ่งขายทำกำไรบ้าง (Take Profit) แล้วรอมารับใหม่ข้างล่าง"
-    elif score <= -4:
-        status_color = "red"
-        banner_title = "Bearish: ขาลงเต็มตัว"
-        strategy_text = "Strong Sell / Avoid (ขายทิ้ง/ห้ามยุ่ง)"
-        context_text = "ตลาดอยู่ในสภาวะ 'หมี' (Downtrend) แรงขายครองตลาด โครงสร้างราคาเสียหายหนัก การเข้าซื้อตอนนี้เสี่ยงมาก"
-        holder_advice = "🥶 **Decision Time:** \n1. **สายเก็งกำไร:** ต้องยอมมอบตัว (Cut Loss) ทันที เพราะเทรนด์ลงชัดเจน \n2. **สายถือนาน/ติดดอย:** **ห้ามซื้อถัวเฉลี่ยขาลงเด็ดขาด (No DCA)** รอจนกว่าราคาจะสร้างฐานใหม่และยืนเหนือ EMA 20 ได้ค่อยพิจารณาอีกที"
-    elif score <= -1:
-        status_color = "orange"
-        banner_title = "Correction/Weak: เริ่มอ่อนแอ"
-        strategy_text = "Defensive (ระวังตัว/เด้งขาย)"
-        context_text = "โมเมนตัมเริ่มอ่อนแรง หรือติดแนวต้านสำคัญ ระวังการปรับฐานลึก"
-        holder_advice = "😐 **Caution:** พอร์ตเริ่มมีความเสี่ยง ให้หาจังหวะที่ราคาดีดตัวขึ้น (Rebound) เพื่อแบ่งขายลดพอร์ต (Trim Position) อย่าเพิ่งซื้อเพิ่ม"
-    else: 
+        context_text = "ภาพรวมเป็นขาขึ้น แต่ระยะสั้นมีการพักตัวหรือแรงขายทำกำไรออกมาบ้าง ไม่ใช่เรื่องน่าห่วง เป็นการย่อเพื่อไปต่อ"
+        holder_advice = f"🙂 **Hold & Watch:** ถือต่อได้ แต่ถ้าหลุดเส้น EMA 20 ({e20_str}) ให้แบ่งขายทำกำไรบางส่วน (Trim) แล้วมารอรับคืนข้างล่างเพื่อลดต้นทุน"
+
+    elif score >= -1:
         status_color = "yellow"
-        banner_title = "Sideway: ไร้ทิศทาง"
-        strategy_text = "Wait & See (ทับมือ)"
-        context_text = "แรงซื้อขายยังสู้กันอยู่ ราคาแกว่งตัวออกข้าง รอเลือกทาง"
-        holder_advice = "🤔 **Wait:** ถือรอได้ถ้าต้นทุนต่ำ แต่ถ้าราคาหลุดแนวรับสำคัญ (Stop Loss) ต้องวินัยเคร่งครัด ห้ามลืมตั้ง Stop Loss เด็ดขาด"
+        banner_title = "⚖️ Neutral: เลือกทางไม่ถูก"
+        strategy_text = "Wait & See (ทับมือ/รอดูสถานการณ์)"
+        context_text = "ตลาดไร้ทิศทาง (Non-Trend) แรงซื้อและแรงขายสู้กันสูสี ราคาแกว่งตัวในกรอบแคบๆ เพื่อรอปัจจัยใหม่มากระตุ้น"
+        holder_advice = f"🤔 **Be Patient:** ถ้าทุนต่ำถือรอได้ แต่ถ้าทุนสูงให้ตั้ง Stop Loss ({sl_str}) ไว้ที่กรอบล่างของกล่อง ห้ามลึกกว่านั้น ถ้าราคาไม่ไปไหนนานๆ อาจพิจารณาเปลี่ยนตัวเล่น"
+
+    # ✅ LEVEL 3: Deep Pullback Strategy
+    elif score >= -3:
+        status_color = "orange"
+        banner_title = "☁️ Weak Warning: พักตัวลึก/ระวังฐานแตก"
+        strategy_text = "Defensive / Wait for Reversal (ตั้งการ์ด/รอจุดกลับตัว)"
+        context_text = "โมเมนตัมระยะสั้นแผ่วลงชัดเจน คล้ายสภาวะ **'Deep Pullback' (ย่อลึกในขาขึ้น)** ความเสี่ยงยังสูง ห้ามรับมีด! ต้องรอให้แรงขายหมดและราคาสร้างฐานใหม่ให้เสร็จก่อน"
+        
+        # คำแนะนำแบบ Step-by-Step พร้อมราคา
+        holder_advice = (
+            f"🦅 **Sniper Mode:** ใจเย็นๆ! อย่าเพิ่งรีบช้อนตอนเห็นสีแดง\n"
+            f"1. **Wait:** รอให้กราฟ Day หยุดทำ Low ใหม่ หรือเริ่มออกข้าง\n"
+            f"2. **Confirm:** รอให้ราคากลับมายืนเหนือ **EMA 20 ({e20_str})** ให้ได้ก่อน (เพื่อความชัวร์)\n"
+            f"3. **Action:** จุดนั้นคือ 'Low Risk, High Reward' ที่ดีที่สุดในการเข้าซื้อเพิ่ม!"
+        )
+
+    elif score >= -5:
+        status_color = "red"
+        banner_title = "🐻 Strong Bearish: ขาลงเต็มตัว"
+        strategy_text = "Strong Sell / Avoid (ขายทิ้ง/ห้ามยุ่ง)"
+        context_text = "โครงสร้างราคาเสียหาย หลุดแนวรับสำคัญ เทรนด์หลักเปลี่ยนทิศเป็นขาลง แรงขายครองตลาดอย่างสมบูรณ์"
+        holder_advice = f"🥶 **Cut Loss Now:** อย่าเสียดาย! ต้องยอมมอบตัวก่อนที่จะเสียหายหนักกว่าเดิม ห้ามถัวเฉลี่ยขาลงเด็ดขาด จนกว่าจะยืน EMA 20 ({e20_str}) ได้"
+
+    else:
+        status_color = "red"
+        banner_title = "🩸 Extreme Crash: วิกฤต/เทกระจาด"
+        strategy_text = "Run Away (หนีตาย/ล้างพอร์ต)"
+        context_text = "เกิดแรงเทขายแบบ Panic Sell รุนแรง! ทุกอินดิเคเตอร์ชี้ลงเหว อาจมีข่าวร้ายแรงมากระทบ เป็นจุดที่อันตรายที่สุด"
+        holder_advice = "🚑 **Emergency Exit:** ขายทุกราคา (Market Price) เพื่อเอาชีวิตรอด การถือต่อมีความเสี่ยงที่ราคาจะลงลึกแบบไร้ก้นเหว (Bottomless)"
 
     return {
         "status_color": status_color,
@@ -323,8 +368,8 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
         "context": context_text,
         "bullish_factors": bullish_factors, 
         "bearish_factors": bearish_factors,
-        "sl": sl,
-        "tp": tp,
+        "sl": sl_val,
+        "tp": tp_val,
         "holder_advice": holder_advice
     }
 
@@ -334,9 +379,9 @@ if submit_btn:
     st.markdown("""<style>body { overflow: auto !important; }</style>""", unsafe_allow_html=True)
     
     with st.spinner(f"AI กำลังประมวลผล {symbol_input} แบบ Hybrid Full Loop..."):
-        df, info, df_mtf, news = get_data_hybrid(symbol_input, tf_code, mtf_code)
+        df, info, df_mtf = get_data_hybrid(symbol_input, tf_code, mtf_code)
 
-    if df is not None and not df.empty and len(df) > 200:
+    if df is not None and not df.empty and len(df) > 10: 
         # Calculations
         df['EMA20'] = ta.ema(df['Close'], length=20)
         df['EMA50'] = ta.ema(df['Close'], length=50)
@@ -360,35 +405,40 @@ if submit_btn:
         # Last Values
         last = df.iloc[-1]
         price = info['regularMarketPrice'] if info['regularMarketPrice'] else last['Close']
-        rsi = last['RSI']
-        atr = last['ATR']
-        ema20=last['EMA20']; ema50=last['EMA50']; ema200=last['EMA200']
+        
+        rsi = last['RSI'] if 'RSI' in last else np.nan
+        atr = last['ATR'] if 'ATR' in last else np.nan
+        ema20 = last['EMA20'] if 'EMA20' in last else np.nan
+        ema50 = last['EMA50'] if 'EMA50' in last else np.nan
+        ema200 = last['EMA200'] if 'EMA200' in last else np.nan
         vol_now = last['Volume']
         
         try: macd_val, macd_signal = last['MACD_12_26_9'], last['MACDs_12_26_9']
-        except: macd_val, macd_signal = 0, 0
+        except: macd_val, macd_signal = np.nan, np.nan
         try: adx_val = last['ADX_14']
-        except: adx_val = 0
+        except: adx_val = np.nan
 
-        if bbu_col_name and bbl_col_name: bb_upper, bb_lower = last[bbu_col_name], last[bbl_col_name]
-        else: bb_upper, bb_lower = price * 1.05, price * 0.95
+        if bbu_col_name and bbl_col_name: 
+            bb_upper, bb_lower = last[bbu_col_name], last[bbl_col_name]
+        else: 
+            bb_upper, bb_lower = price * 1.05, price * 0.95
 
         # Inputs for AI
         vol_status, vol_color = analyze_volume(last, last['Vol_SMA20'])
         mtf_trend = "Sideway"
         mtf_ema200_val = 0
         
-        if df_mtf is not None and not df_mtf.empty and len(df_mtf) > 50:
-            df_mtf['EMA50'] = ta.ema(df_mtf['Close'], length=50)
-            if df_mtf['Close'].iloc[-1] > df_mtf['EMA50'].iloc[-1]: mtf_trend = "Bullish"
-            else: mtf_trend = "Bearish"
-            if len(df_mtf) > 200:
-                df_mtf['EMA200'] = ta.ema(df_mtf['Close'], length=200)
+        if df_mtf is not None and not df_mtf.empty:
+            # ✅ FIX: ใช้ EMA 200 แทน EMA 50 สำหรับ Multi-Frame เพื่อความแม่นยำ
+            df_mtf['EMA200'] = ta.ema(df_mtf['Close'], length=200) 
+            if len(df_mtf) > 200 and not pd.isna(df_mtf['EMA200'].iloc[-1]):
                 mtf_ema200_val = df_mtf['EMA200'].iloc[-1]
+                if df_mtf['Close'].iloc[-1] > mtf_ema200_val: mtf_trend = "Bullish"
+                else: mtf_trend = "Bearish"
         
-        news_score = analyze_news_sentiment(news)
+        # ❌ ลบส่วน News Score ออก
         ai_report = ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_signal, adx_val, bb_upper, bb_lower, 
-                                        vol_status, mtf_trend, news_score, atr)
+                                        vol_status, mtf_trend, 0, atr, mtf_ema200_val)
 
         # --- DISPLAY ---
         logo_url = f"https://financialmodelingprep.com/image-stock/{symbol_input}.png"
@@ -469,30 +519,30 @@ if submit_btn:
 
         # 2. RSI
         with c4:
+            rsi_str = f"{rsi:.2f}" if not np.isnan(rsi) else "N/A"
             rsi_text = get_rsi_interpretation(rsi)
-            if rsi >= 70: rsi_color = "red"; rsi_icon = icon_up_svg
+            if np.isnan(rsi): rsi_color = "gray"; rsi_icon = icon_flat_svg
+            elif rsi >= 70: rsi_color = "red"; rsi_icon = icon_up_svg
             elif rsi >= 55: rsi_color = "green"; rsi_icon = icon_up_svg
             elif rsi >= 45: rsi_color = "gray"; rsi_icon = icon_wave_svg
             elif rsi >= 30: rsi_color = "red"; rsi_icon = icon_down_svg
             else: rsi_color = "red"; rsi_icon = icon_down_svg
-            st.markdown(custom_metric_html("⚡ RSI (14)", f"{rsi:.2f}", rsi_text, rsi_color, rsi_icon), unsafe_allow_html=True)
+            st.markdown(custom_metric_html("⚡ RSI (14)", rsi_str, rsi_text, rsi_color, rsi_icon), unsafe_allow_html=True)
 
-        # 3. ADX (SMART & CONTEXT AWARE)
+        # 3. ADX
         with c5:
-            is_uptrend = price >= ema200
+            is_uptrend = price >= ema200 if not np.isnan(ema200) else True
             adx_text = get_adx_interpretation(adx_val, is_uptrend)
+            adx_str = f"{adx_val:.2f}" if not np.isnan(adx_val) else "N/A"
             
-            if adx_val >= 25: # Strong Zone
-                if is_uptrend:
-                    adx_color = "green"; adx_icon = icon_up_svg
-                else:
-                    adx_color = "red"; adx_icon = icon_down_svg
-            elif adx_val >= 20: # Developing Zone
-                adx_color = "gray"; adx_icon = icon_wave_svg
-            else: # Weak Zone
+            if np.isnan(adx_val): adx_color = "gray"; adx_icon = icon_flat_svg
+            elif adx_val >= 25: 
+                if is_uptrend: adx_color = "green"; adx_icon = icon_up_svg
+                else: adx_color = "red"; adx_icon = icon_down_svg
+            else: 
                 adx_color = "gray"; adx_icon = icon_wave_svg
                 
-            st.markdown(custom_metric_html("💪 ADX Strength", f"{adx_val:.2f}", adx_text, adx_color, adx_icon), unsafe_allow_html=True)
+            st.markdown(custom_metric_html("💪 ADX Strength", adx_str, adx_text, adx_color, adx_icon), unsafe_allow_html=True)
 
         st.write("") 
 
@@ -501,15 +551,19 @@ if submit_btn:
             st.subheader("📉 Technical Indicators")
             
             vol_str = format_volume(vol_now)
+            e20_s = f"{ema20:.2f}" if not np.isnan(ema20) else "N/A"
+            e200_s = f"{ema200:.2f}" if not np.isnan(ema200) else "N/A"
+            atr_s = f"{atr:.2f}" if not np.isnan(atr) else "N/A"
+            macd_s = f"{macd_val:.3f}" if not np.isnan(macd_val) else "N/A"
             
             st.markdown(f"""
             <div style='background-color: var(--secondary-background-color); padding: 15px; border-radius: 10px; font-size: 0.95rem;'>
                 <div style='display:flex; justify-content:space-between; margin-bottom:5px; border-bottom:1px solid #ddd; font-weight:bold;'><span>Indicator</span> <span>Value</span></div>
-                <div style='display:flex; justify-content:space-between;'><span>EMA 20</span> <span>{ema20:.2f}</span></div>
-                <div style='display:flex; justify-content:space-between;'><span>EMA 200</span> <span>{ema200:.2f}</span></div>
-                <div style='display:flex; justify-content:space-between;'><span>MACD</span> <span style='color:{'green' if macd_val > macd_signal else 'red'}'>{macd_val:.3f}</span></div>
+                <div style='display:flex; justify-content:space-between;'><span>EMA 20</span> <span>{e20_s}</span></div>
+                <div style='display:flex; justify-content:space-between;'><span>EMA 200</span> <span>{e200_s}</span></div>
+                <div style='display:flex; justify-content:space-between;'><span>MACD</span> <span>{macd_s}</span></div>
                 <div style='display:flex; justify-content:space-between;'><span>Volume ({vol_str})</span> <span style='color:{vol_color}'>{vol_status.split(' ')[0]}</span></div>
-                <div style='display:flex; justify-content:space-between;'><span>ATR (ราคาแกว่งเฉลี่ย)</span> <span>{atr:.2f}</span></div>
+                <div style='display:flex; justify-content:space-between;'><span>ATR (ราคาแกว่งเฉลี่ย)</span> <span>{atr_s}</span></div>
             </div>
             """, unsafe_allow_html=True)
             
@@ -518,6 +572,7 @@ if submit_btn:
             high_60d = df['High'].tail(60).max()
             mtf_label_str = f"EMA 200 ({mtf_code.upper()})" if mtf_ema200_val > 0 else "MTF EMA 200 (N/A)"
             
+            # Filter Valid Levels
             potential_supports = [
                 (bb_lower, "BB Lower (Volatility)"),
                 (low_60d, "Low 60 Days (Price Action)"),
@@ -526,7 +581,7 @@ if submit_btn:
                 (ema50, "EMA 50 (Short Trend)"),
                 (ema20, "EMA 20 (Momentum)")
             ]
-            raw_supports = sorted([x for x in potential_supports if x[0] < price and x[0] > 0], key=lambda x: x[0], reverse=True)
+            raw_supports = sorted([x for x in potential_supports if not np.isnan(x[0]) and x[0] < price and x[0] > 0], key=lambda x: x[0], reverse=True)
             valid_supports = filter_levels(raw_supports, threshold_pct=0.015)
             
             potential_resistances = [
@@ -536,7 +591,7 @@ if submit_btn:
                 (bb_upper, "BB Upper (Ceiling)"),
                 (high_60d, "High 60 Days (Peak)")
             ]
-            raw_resistances = sorted([x for x in potential_resistances if x[0] > price and x[0] > 0], key=lambda x: x[0])
+            raw_resistances = sorted([x for x in potential_resistances if not np.isnan(x[0]) and x[0] > price and x[0] > 0], key=lambda x: x[0])
             valid_resistances = filter_levels(raw_resistances, threshold_pct=0.015)
             
             st.markdown("#### 🟢 แนวรับ (Strategic Supports)")
@@ -556,13 +611,11 @@ if submit_btn:
             with st.container():
                 st.info(f"{exp_adx}")
                 st.info(f"{exp_macd}")
-                sent_icon = "😊" if news_score > 0 else "😡" if news_score < 0 else "😐"
-                st.info(f"📰 **Sentiment:** {sent_icon} Score: {news_score} (ประเมินจากพาดหัวข่าว {len(news)} ข่าวล่าสุด)")
+                # ❌ ส่วน Sentiment ข่าว ถูกตัดออกไปแล้ว ตามคำขอ
 
-            # ✅ UPDATE: ส่วนแสดงผล Highlight Box (ตามที่คุณขอ "ทำให้เด่น")
+            # ✅ UPDATE: ส่วนแสดงผล Highlight Box
             st.subheader("🤖 AI STRATEGY (บทสรุป)")
             
-            # Map status to colors for the banner
             color_map = {
                 "green": {"bg": "#dcfce7", "border": "#22c55e", "text": "#14532d"},
                 "red": {"bg": "#fee2e2", "border": "#ef4444", "text": "#7f1d1d"},
@@ -571,7 +624,6 @@ if submit_btn:
             }
             c_theme = color_map.get(ai_report['status_color'], color_map["yellow"])
 
-            # Create a Custom Card
             st.markdown(f"""
             <div style="
                 background-color: {c_theme['bg']};
