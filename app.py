@@ -35,7 +35,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 3. ส่วนหัวข้อ ---
-st.markdown("<h1>💎 Ai<br><span style='font-size: 1.5rem; opacity: 0.7;'>ระบบวิเคราะห์หุ้นอัจฉริยะ (Technical Pure)</span></h1>", unsafe_allow_html=True)
+st.markdown("<h1>💎 Ai<br><span style='font-size: 1.5rem; opacity: 0.7;'>ระบบวิเคราะห์หุ้นอัจฉริยะ🥶 (Hybrid Sniper)</span></h1>", unsafe_allow_html=True)
 
 # --- Form ค้นหา ---
 col_space1, col_form, col_space2 = st.columns([1, 2, 1])
@@ -175,23 +175,24 @@ def filter_levels(levels, threshold_pct=0.015):
             if diff > threshold_pct: selected.append((val, label))
     return selected
 
-# --- 5. Data Fetching (Smart Logic - No News) ---
+# --- 5. Data Fetching (Smart Logic - NO News) ---
 @st.cache_data(ttl=10, show_spinner=False)
 def get_data_hybrid(symbol, interval, mtf_interval):
     try:
         ticker = yf.Ticker(symbol)
         
-        # ✅ SMART SELECTION: เลือกช่วงเวลาตามความเหมาะสม
+        # Smart Period Selection
         if interval == "1wk":
-            period_val = "10y"  # Week: 10 ปี
+            period_val = "10y"  # Week: 10 ปี (ได้ ~520 แท่ง) เหมาะสุดสำหรับ EMA 200
         elif interval == "1d":
-            period_val = "5y"   # Day: 5 ปี
+            period_val = "5y"   # Day: 5 ปี (ได้ ~1,250 แท่ง) เหลือเฟือและไม่หนักเครื่อง
         else: # 1h
-            period_val = "730d" # Hour: 2 ปี
+            period_val = "730d" # Hour: 2 ปี (Max ของ Yahoo)
 
         df = ticker.history(period=period_val, interval=interval)
-        df_mtf = ticker.history(period="10y", interval=mtf_interval) # MTF ดึง 10 ปีเสมอ (EMA 200 Week)
-        # ❌ ตัดการดึงข่าวออก (News Removed)
+        df_mtf = ticker.history(period="10y", interval=mtf_interval) # MTF ดึง 10 ปีเสมอ เพื่อให้ EMA 200 Week คำนวณได้ชัวร์
+        
+        # ❌ (Removed) news = ticker.news 
         
         stock_info = {
             'longName': ticker.info.get('longName', symbol),
@@ -219,7 +220,7 @@ def get_data_hybrid(symbol, interval, mtf_interval):
     except:
         return None, None, None
 
-# --- 6. Analysis Logic (No News) ---
+# --- 6. Analysis Logic ---
 def analyze_volume(row, vol_ma):
     vol = row['Volume']
     if np.isnan(vol_ma): return "Normal Volume", "gray"
@@ -227,7 +228,7 @@ def analyze_volume(row, vol_ma):
     elif vol < vol_ma * 0.7: return "Low Volume", "red"
     else: return "Normal Volume", "gray"
 
-# --- 7. AI Decision Engine (Master Logic - No News Score) ---
+# --- 7. AI Decision Engine (Master Logic - NO News) ---
 def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx, bb_up, bb_low, 
                        vol_status, mtf_trend, atr_val, mtf_ema200_val):
     score = 0
@@ -263,7 +264,7 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
             score -= 1
             bearish_factors.append("MACD ตัดลง (โมเมนตัมลบ/แรงส่งแผ่ว)")
 
-    # 3. MTF Logic (Fix: Use EMA 200)
+    # 3. MTF Logic (Fix: Use EMA 200 for Long Term Trend)
     mtf_label = "Week" if mtf_trend != "Unknown" else "MTF"
     if mtf_trend == "Bullish":
         score += 2
@@ -332,7 +333,7 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
         context_text = "ตลาดไร้ทิศทาง (Non-Trend) แรงซื้อและแรงขายสู้กันสูสี ราคาแกว่งตัวในกรอบแคบๆ เพื่อรอปัจจัยใหม่มากระตุ้น"
         holder_advice = f"🤔 **Be Patient:** ถ้าทุนต่ำถือรอได้ แต่ถ้าทุนสูงให้ตั้ง Stop Loss ({sl_str}) ไว้ที่กรอบล่างของกล่อง ห้ามลึกกว่านั้น ถ้าราคาไม่ไปไหนนานๆ อาจพิจารณาเปลี่ยนตัวเล่น"
 
-    # ✅ LEVEL 3: Deep Pullback Strategy
+    # ✅ LEVEL 3 (UPDATED): Deep Pullback Strategy
     elif score >= -3:
         status_color = "orange"
         banner_title = "☁️ Weak Warning: พักตัวลึก/ระวังฐานแตก"
@@ -436,9 +437,9 @@ if submit_btn:
                 if df_mtf['Close'].iloc[-1] > mtf_ema200_val: mtf_trend = "Bullish"
                 else: mtf_trend = "Bearish"
         
-        # ❌ ลบส่วน News Score ออก
+        # ❌ เอา Sentiment ออกแล้ว
         ai_report = ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_signal, adx_val, bb_upper, bb_lower, 
-                                        vol_status, mtf_trend, 0, atr, mtf_ema200_val)
+                                        vol_status, mtf_trend, atr, mtf_ema200_val)
 
         # --- DISPLAY ---
         logo_url = f"https://financialmodelingprep.com/image-stock/{symbol_input}.png"
@@ -611,7 +612,7 @@ if submit_btn:
             with st.container():
                 st.info(f"{exp_adx}")
                 st.info(f"{exp_macd}")
-                # ❌ ส่วน Sentiment ข่าว ถูกตัดออกไปแล้ว ตามคำขอ
+                # (Sentiment removed)
 
             # ✅ UPDATE: ส่วนแสดงผล Highlight Box
             st.subheader("🤖 AI STRATEGY (บทสรุป)")
