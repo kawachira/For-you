@@ -35,7 +35,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 3. ส่วนหัวข้อ ---
-st.markdown("<h1>💎 Ai<br><span style='font-size: 1.5rem; opacity: 0.7;'>ระบบวิเคราะห์หุ้นอัจฉริยะ🥶 (Hybrid Sniper)</span></h1>", unsafe_allow_html=True)
+st.markdown("<h1>💎 Ai<br><span style='font-size: 1.5rem; opacity: 0.7;'>ระบบวิเคราะห์หุ้นอัจฉริยะ (Hybrid Sniper)🪐</span></h1>", unsafe_allow_html=True)
 
 # --- Form ค้นหา ---
 col_space1, col_form, col_space2 = st.columns([1, 2, 1])
@@ -164,10 +164,23 @@ def display_learning_section(rsi, rsi_interp, macd_val, macd_signal, macd_interp
         st.markdown(f"#### 4. Bollinger Bands (BB)\n* **Upper:** `{bb_upper:.2f}` | **Lower:** `{bb_lower:.2f}`")
         st.markdown("* **คืออะไร?:** กรอบการแกว่งตัวของราคาเปรียบเหมือนขอบถนน ถ้าราคาทะลุออกไปมักจะเด้งกลับเข้ามา")
 
-def filter_levels(levels, threshold_pct=0.015):
+def filter_levels(levels, threshold_pct=0.025): # ✅ ปรับระยะห่างเป็น 2.5% เพื่อให้แนวต้านไม่ชิดกันเกินไป
     selected = []
     for val, label in levels:
         if np.isnan(val): continue
+        # --- แปลภาษาและย่อคำตรงนี้ ---
+        label = label.replace("BB Lower (Volatility)", "BB Lower (กรอบล่าง)")
+        label = label.replace("Low 60 Days (Price Action)", "Low 60 วัน (ฐานราคา)")
+        label = label.replace("EMA 200 (Trend Wall)", "EMA 200 (เทรนด์หลัก)")
+        label = label.replace("EMA 50 (Short Trend)", "EMA 50 (ระยะกลาง)")
+        label = label.replace("EMA 20 (Momentum)", "EMA 20 (โมเมนตัม)")
+        label = label.replace("BB Upper (Ceiling)", "BB Upper (ต้านใหญ่)")
+        label = label.replace("High 60 Days (Peak)", "High 60 วัน (ยอดดอย)")
+        
+        # Format MTF
+        if "MTF" in label or "1wk" in label.lower() or "1mo" in label.lower():
+             label = "EMA 200 (TF ใหญ่)"
+
         if not selected: selected.append((val, label))
         else:
             last_val = selected[-1][0]
@@ -183,16 +196,14 @@ def get_data_hybrid(symbol, interval, mtf_interval):
         
         # Smart Period Selection
         if interval == "1wk":
-            period_val = "10y"  # Week: 10 ปี (ได้ ~520 แท่ง) เหมาะสุดสำหรับ EMA 200
+            period_val = "10y"  # Week: 10 ปี
         elif interval == "1d":
-            period_val = "5y"   # Day: 5 ปี (ได้ ~1,250 แท่ง) เหลือเฟือและไม่หนักเครื่อง
+            period_val = "5y"   # Day: 5 ปี
         else: # 1h
-            period_val = "730d" # Hour: 2 ปี (Max ของ Yahoo)
+            period_val = "730d" # Hour: 2 ปี
 
         df = ticker.history(period=period_val, interval=interval)
-        df_mtf = ticker.history(period="10y", interval=mtf_interval) # MTF ดึง 10 ปีเสมอ เพื่อให้ EMA 200 Week คำนวณได้ชัวร์
-        
-        # ❌ (Removed) news = ticker.news 
+        df_mtf = ticker.history(period="10y", interval=mtf_interval) # MTF ดึง 10 ปีเสมอ
         
         stock_info = {
             'longName': ticker.info.get('longName', symbol),
@@ -228,30 +239,30 @@ def analyze_volume(row, vol_ma):
     elif vol < vol_ma * 0.7: return "Low Volume", "red"
     else: return "Normal Volume", "gray"
 
-# --- 7. AI Decision Engine (Master Logic - NO News) ---
+# --- 7. AI Decision Engine (Master Logic - NO News - UPDATED UI TEXT) ---
 def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx, bb_up, bb_low, 
                        vol_status, mtf_trend, atr_val, mtf_ema200_val):
     score = 0
     bullish_factors = [] 
     bearish_factors = []
     
-    # 1. Trend Analysis
+    # 1. Trend Analysis (Updated Text with Day context)
     if not np.isnan(ema200):
         if price > ema200:
             score += 3
-            bullish_factors.append("ราคาอยู่เหนือเส้น EMA 200 (เทรนด์หลักขาขึ้น)")
+            bullish_factors.append("ราคา (Day) อยู่เหนือเส้น EMA 200 (เทรนด์หลักขาขึ้น)")
             if not np.isnan(ema20) and price > ema20:
                 score += 1
-                bullish_factors.append("ราคายืนเหนือ EMA 20 (ระยะสั้นแข็งแกร่ง)")
+                bullish_factors.append("ราคา (Day) ยืนเหนือ EMA 20 (ระยะสั้นแข็งแกร่ง)")
             elif not np.isnan(ema20):
-                bearish_factors.append("ระยะสั้นหลุด EMA 20 (มีการพักตัวในขาขึ้น)")
+                bearish_factors.append("ราคา (Day) หลุด EMA 20 (มีการพักตัวในขาขึ้น)")
         else:
             score -= 3
-            bearish_factors.append("ราคาอยู่ใต้เส้น EMA 200 (เทรนด์หลักขาลง)")
+            bearish_factors.append("ราคา (Day) อยู่ใต้เส้น EMA 200 (เทรนด์หลักขาลง)")
             if not np.isnan(ema20) and price < ema20:
-                bearish_factors.append("ราคาอยู่ใต้ EMA 20 (แรงขายระยะสั้นยังกดดัน)")
+                bearish_factors.append("ราคา (Day) อยู่ใต้ EMA 20 (แรงขายระยะสั้นยังกดดัน)")
             elif not np.isnan(ema20):
-                bullish_factors.append("ราคาดีดกลับมายืนเหนือ EMA 20 ได้ (ลุ้น Rebound)")
+                bullish_factors.append("ราคา (Day) ดีดกลับมายืนเหนือ EMA 20 ได้ (ลุ้น Rebound)")
     else:
         bullish_factors.append("ข้อมูลกราฟไม่เพียงพอสำหรับ EMA 200")
 
@@ -259,12 +270,12 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
     if not np.isnan(macd_val) and not np.isnan(macd_sig):
         if macd_val > macd_sig:
             score += 1
-            bullish_factors.append("MACD ตัดขึ้น (โมเมนตัมบวก)")
+            bullish_factors.append("MACD (Day) ตัดขึ้น (โมเมนตัมบวก)")
         else:
             score -= 1
-            bearish_factors.append("MACD ตัดลง (โมเมนตัมลบ/แรงส่งแผ่ว)")
+            bearish_factors.append("MACD (Day) ตัดลง (โมเมนตัมลบ/แรงส่งแผ่ว)")
 
-    # 3. MTF Logic (Fix: Use EMA 200 for Long Term Trend)
+    # 3. MTF Logic (Fix: Use EMA 200)
     mtf_label = "Week" if mtf_trend != "Unknown" else "MTF"
     if mtf_trend == "Bullish":
         score += 2
@@ -287,9 +298,9 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
     # 5. RSI
     if not np.isnan(rsi):
         if rsi > 70:
-            bearish_factors.append(f"RSI สูงระดับ {rsi:.0f} (Overbought) ระวังแรงเทขายทำกำไร")
+            bearish_factors.append(f"RSI (Day) สูงระดับ {rsi:.0f} (Overbought) ระวังแรงเทขายทำกำไร")
         elif rsi < 30:
-            bullish_factors.append(f"RSI ต่ำระดับ {rsi:.0f} (Oversold) ราคาเริ่มถูก อาจมีเด้งสั้น")
+            bullish_factors.append(f"RSI (Day) ต่ำระดับ {rsi:.0f} (Oversold) ราคาเริ่มถูก อาจมีเด้งสั้น")
 
     # --- Strategy Generator ---
     status_color = "yellow"
@@ -568,7 +579,8 @@ if submit_btn:
             </div>
             """, unsafe_allow_html=True)
             
-            st.subheader("🚧 Key Levels (Smart Filter)")
+            # --- Key Levels UI Modified ---
+            st.subheader("🚧 Key Levels (นัยสำคัญ)")
             low_60d = df['Low'].tail(60).min()
             high_60d = df['High'].tail(60).max()
             mtf_label_str = f"EMA 200 ({mtf_code.upper()})" if mtf_ema200_val > 0 else "MTF EMA 200 (N/A)"
@@ -583,7 +595,7 @@ if submit_btn:
                 (ema20, "EMA 20 (Momentum)")
             ]
             raw_supports = sorted([x for x in potential_supports if not np.isnan(x[0]) and x[0] < price and x[0] > 0], key=lambda x: x[0], reverse=True)
-            valid_supports = filter_levels(raw_supports, threshold_pct=0.015)
+            valid_supports = filter_levels(raw_supports, threshold_pct=0.025) # ✅ ปรับระยะห่างเป็น 2.5%
             
             potential_resistances = [
                 (ema20, "EMA 20 (Momentum)"),
@@ -593,17 +605,17 @@ if submit_btn:
                 (high_60d, "High 60 Days (Peak)")
             ]
             raw_resistances = sorted([x for x in potential_resistances if not np.isnan(x[0]) and x[0] > price and x[0] > 0], key=lambda x: x[0])
-            valid_resistances = filter_levels(raw_resistances, threshold_pct=0.015)
+            valid_resistances = filter_levels(raw_resistances, threshold_pct=0.025) # ✅ ปรับระยะห่างเป็น 2.5%
             
-            st.markdown("#### 🟢 แนวรับ (Strategic Supports)")
+            st.markdown("#### 🟢 แนวรับ (Support)")
             if valid_supports:
                 for v, d in valid_supports[:3]: st.write(f"- **{v:.2f}** : {d}")
-            else: st.write("- ราคาทำ All Time High / ไม่มีแนวรับใกล้เคียง")
+            else: st.write("- ราคาทำ All Time High")
             
-            st.markdown("#### 🔴 แนวต้าน (Resistances)")
+            st.markdown("#### 🔴 แนวต้าน (Resistance)")
             if valid_resistances:
-                for v, d in valid_resistances[:3]: st.write(f"- **{v:.2f}** : {d}")
-            else: st.write("- ราคาทำ All Time Low / ไม่มีแนวต้านใกล้เคียง")
+                for v, d in valid_resistances[:2]: st.write(f"- **{v:.2f}** : {d}")
+            else: st.write("- ราคาทำ All Time Low")
 
         with c_ai:
             exp_adx, exp_rsi, exp_macd, exp_trend = get_detailed_explanation(adx_val, rsi, macd_val, macd_signal, price, ema200)
@@ -612,7 +624,6 @@ if submit_btn:
             with st.container():
                 st.info(f"{exp_adx}")
                 st.info(f"{exp_macd}")
-                # (Sentiment removed)
 
             # ✅ UPDATE: ส่วนแสดงผล Highlight Box
             st.subheader("🤖 AI STRATEGY (บทสรุป)")
