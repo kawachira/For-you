@@ -129,7 +129,19 @@ def custom_metric_html(label, value, status_text, color_status, icon_svg):
     if color_status == "green": color_code = "#16a34a"
     elif color_status == "red": color_code = "#dc2626"
     else: color_code = "#a3a3a3"
-    html = f"""<div style="margin-bottom: 15px;"><div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 5px;"><div style="font-size: 18px; font-weight: 700; opacity: 0.9; color: var(--text-color); white-space: nowrap;">{label}</div><div style="font-size: 24px; font-weight: 700; color: var(--text-color);">{value}</div></div><div style="display: flex; align-items: start; gap: 6px; font-size: 15px; font-weight: 600; color: {color_code}; line-height: 1.4;"><div style="margin-top: 3px; min-width: 24px;">{icon_svg}</div><div>{status_text}</div></div></div>"""
+    
+    html = f"""
+    <div style="margin-bottom: 15px;">
+        <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 5px;">
+            <div style="font-size: 18px; font-weight: 700; opacity: 0.9; color: var(--text-color); white-space: nowrap;">{label}</div>
+            <div style="font-size: 24px; font-weight: 700; color: var(--text-color);">{value}</div>
+        </div>
+        <div style="display: flex; align-items: start; gap: 6px; font-size: 15px; font-weight: 600; color: {color_code}; line-height: 1.4;">
+            <div style="margin-top: 3px; min-width: 24px;">{icon_svg}</div>
+            <div>{status_text}</div>
+        </div>
+    </div>
+    """
     return html
 
 def get_rsi_interpretation(rsi):
@@ -230,7 +242,6 @@ def analyze_volume(row, vol_ma):
     else: return "Normal Volume", "gray"
 
 # --- 7. AI Decision Engine (CORRECT REALITY LOGIC) ---
-# ปรับ Logic ให้ถูกต้องตามหลักการ Price Action (ราคามาก่อนอินดิเคเตอร์)
 def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx, bb_up, bb_low, 
                        vol_status, mtf_trend, atr_val, mtf_ema200_val,
                        open_price, high, low, close): 
@@ -245,7 +256,6 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
     bearish_factors = []
     
     # --- [CORRECTION POINT]: เช็คทรงกราฟแบบ "ราคาปัจจุบัน" (Action First) ---
-    # ไม่รอเส้น EMA ตัดกัน เพราะมันช้า (Lag) ให้ดูที่ราคาเลยว่ายืนเหนือแนวรับสำคัญไหม
     is_uptrend_structure = False
     if not np.isnan(ema20) and not np.isnan(ema50):
         # [แก้ไขให้ถูกต้อง]: แค่ราคายืนเหนือ EMA 20 และ 50 ได้ ก็ถือว่าเป็นขาขึ้นแล้ว (ไม่ต้องรอเส้นเรียงตัว)
@@ -279,7 +289,6 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
     # 3.1: REALITY FIX: Quiet Uptrend (ทรงกราฟดี แต่ ADX ต่ำ)
     if not np.isnan(adx) and adx < 25:
         if is_uptrend_structure:
-            # นี่คือจุดที่ "ถูกต้อง" -> ราคาขึ้นแล้ว แม้แรงยังน้อย ก็คือขาขึ้น (Quiet Uptrend)
             situation_insight = "📈 **Quiet Uptrend:** ราคาไต่ระดับขึ้นยืนเหนือ EMA ได้ดี (Low Volatility) แม้ ADX จะต่ำแต่ถือเป็นขาขึ้นที่น่าสนใจ"
             bullish_factors.append("ราคาฟื้นตัวยืนเหนือเส้น EMA หลักได้ (Recovery)")
             
@@ -339,7 +348,6 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
         holder_advice = f"เทรนด์ยังดีมาก ถือต่อได้ ถ้าย่อมาแถว EMA 20 ({ema20:.2f}) เป็นโอกาสสะสม"
         
     elif score >= 1:
-        # ยอมรับ Quiet Uptrend ว่าเป็น Bullish
         status_color = "green"; banner_title = "📈 Moderate Bullish: ขาขึ้นต่อเนื่อง"; strategy_text = "Accumulate (ทยอยสะสม)"
         holder_advice = "ราคาไต่ขึ้นแบบ Low Volatility ถือได้เรื่อยๆ สบายใจ"
         
@@ -485,7 +493,9 @@ if submit_btn:
                 for v, d in valid_resistances[:2]: st.write(f"- **{v:.2f}** : {d}")
             else: st.write("- N/A")
             if ai_report['situation_insight']:
-                st.write(""); with st.expander("💡 อ่านสถานการณ์กราฟ (Click to Read)", expanded=True): st.warning(ai_report['situation_insight'])
+                st.write("")
+                with st.expander("💡 อ่านสถานการณ์กราฟ (Click to Read)", expanded=True):
+                    st.warning(ai_report['situation_insight'])
 
         with c_ai:
             st.subheader("🔬 Price Action X-Ray")
@@ -498,8 +508,12 @@ if submit_btn:
             c_theme = color_map.get(ai_report['status_color'], color_map["yellow"])
             st.markdown(f"""<div style="background-color: {c_theme['bg']}; border-left: 6px solid {c_theme['border']}; padding: 20px; border-radius: 10px; margin-bottom: 20px;"><h2 style="color: {c_theme['text']}; margin:0 0 10px 0; font-size: 28px;">{ai_report['banner_title'].split(':')[0]}</h2><h3 style="color: {c_theme['text']}; margin:0 0 15px 0; font-size: 20px; opacity: 0.9;">{ai_report['strategy']}</h3><p style="color: {c_theme['text']}; font-size: 16px; margin:0; line-height: 1.6;"><b>💡 ภาพรวม:</b> {ai_report['context']}</p></div>""", unsafe_allow_html=True)
             with st.chat_message("assistant"):
-                if ai_report['bullish_factors']: st.markdown("**🟢 ปัจจัยบวก:**"); [st.write(f"- {r}") for r in ai_report['bullish_factors']]
-                if ai_report['bearish_factors']: st.markdown("**🔴 ความเสี่ยง:**"); [st.write(f"- {w}") for w in ai_report['bearish_factors']]
+                if ai_report['bullish_factors']: 
+                    st.markdown("**🟢 ปัจจัยบวก:**")
+                    for r in ai_report['bullish_factors']: st.write(f"- {r}")
+                if ai_report['bearish_factors']: 
+                    st.markdown("**🔴 ความเสี่ยง:**")
+                    for w in ai_report['bearish_factors']: st.write(f"- {w}")
                 st.markdown("---"); st.info(f"🎒 **คำแนะนำ:** {ai_report['holder_advice']}"); st.write(f"🛑 **SL:** {ai_report['sl']:.2f} | ✅ **TP:** {ai_report['tp']:.2f}")
 
         st.write(""); st.markdown("""<div class='disclaimer-box'>⚠️ <b>หมายเหตุ:</b> ข้อมูลนี้มาจากการวิเคราะห์ทางเทคนิคด้วยระบบ AI เพื่อประกอบการตัดสินใจเท่านั้น</div>""", unsafe_allow_html=True); st.divider()
