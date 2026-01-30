@@ -761,37 +761,60 @@ if submit_btn:
             atr_pct = (atr / price) * 100 if not np.isnan(atr) and price > 0 else 0; atr_s = f"{atr:.2f} ({atr_pct:.1f}%)" if not np.isnan(atr) else "N/A"; macd_s = f"{macd_val:.3f}" if not np.isnan(macd_val) else "N/A"
             st.markdown(f"""<div style='background-color: var(--secondary-background-color); padding: 15px; border-radius: 10px; font-size: 0.95rem;'><div style='display:flex; justify-content:space-between; margin-bottom:5px; border-bottom:1px solid #ddd; font-weight:bold;'><span>Indicator</span> <span>Value</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 20</span> <span>{e20_s}</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 200</span> <span>{e200_s}</span></div><div style='display:flex; justify-content:space-between;'><span>MACD</span> <span>{macd_s}</span></div><div style='display:flex; justify-content:space-between;'><span>Volume ({vol_str})</span> <span style='color:{vol_color}'>{vol_status.split(' ')[0]}</span></div><div style='display:flex; justify-content:space-between;'><span>ATR</span> <span>{atr_s}</span></div></div>""", unsafe_allow_html=True)
             
-            # --- MODIFIED: Smart Support Logic (Sorted by Nearest Price) ---
+            # --- MODIFIED: Smart Support Logic (Sorted & MTF Added) ---
             st.subheader("🚧 Key Levels (Smart Support)")
             
-            # 1. Prepare Data
-            low_60d = df['Low'].tail(60).min()
-            low_52w = df['Low'].tail(252).min()
-            major_low = df['Low'].min()
-            ema200_week = mtf_ema200_val if mtf_ema200_val > 0 else np.nan
+            # 1. Prepare Data & Calc MTF EMA 50
+            if df_mtf is not None and not df_mtf.empty:
+                df_mtf['EMA50'] = ta.ema(df_mtf['Close'], length=50)
+                mtf_ema50_val = df_mtf['EMA50'].iloc[-1]
+            else:
+                mtf_ema50_val = np.nan
+            
+            # Dynamic Labels based on Timeframe
+            if tf_code == "1d": 
+                label_mtf_50 = "EMA 50 Week (รับระยะกลาง)"
+                label_mtf_200 = "🛡️ EMA 200 Week (รับระดับกองทุน)"
+            elif tf_code == "1h": 
+                label_mtf_50 = "EMA 50 Day (รับรายวัน)"
+                label_mtf_200 = "🛡️ EMA 200 Day (รับใหญ่รายวัน)"
+            else:
+                label_mtf_50 = f"EMA 50 {mtf_code.upper()}"
+                label_mtf_200 = f"EMA 200 {mtf_code.upper()}"
 
-            # 2. Raw List
+            # Calculate Price Floor
+            if tf_code == "1h": 
+                window_1y = 252 * 7 # 1 year ~ 252 trading days * 7 hours
+            else: 
+                window_1y = 252
+
+            low_60d = df['Low'].tail(60).min()
+            low_52w = df['Low'].tail(window_1y).min()
+            major_low = df['Low'].min() 
+
+            # 2. Raw List (Nearest First Logic will sort this)
             potential_supports = [
                 (bb_lower, "BB Lower (กรอบล่าง)"), 
-                (ema200, "EMA 200 Day (รับใหญ่รายวัน)"),
-                (ema20, "EMA 20 Day (รับสั้น)"),
+                (ema200, "EMA 200 (TF ปัจจุบัน)"),
+                (ema20, "EMA 20 (TF ปัจจุบัน)"),
                 (low_60d, "Low 60d (ฐานสั้น)"),           
-                (ema200_week, "🛡️ EMA 200 Week (รับระดับกองทุน)"), 
+                (mtf_ema50_val, label_mtf_50),      # <--- EMA 50 MTF Added
+                (mtf_ema200_val, label_mtf_200),    # <--- EMA 200 MTF Added
                 (low_52w, "📉 52-Week Low (ฐานปี)"),       
                 (major_low, "💎 Major Low (ฐาน 5 ปี)")       
             ]
             
-            # 3. Filter & Sort (Nearest First = Highest Value below price)
+            # 3. Filter & Sort (Highest Value below price = Nearest Support)
             valid_supports = []
             seen_values = set()
             
-            # เรียงจากมากไปน้อย (ค่ามากสุด = ใกล้ราคาปัจจุบันที่สุด)
+            # Sort Descending: Highest price first (closest to current price)
             potential_supports.sort(key=lambda x: x[0] if not np.isnan(x[0]) else -1, reverse=True)
 
             for val, label in potential_supports:
                 if np.isnan(val): continue
-                if val < price: # ต้องต่ำกว่าราคาปัจจุบัน
-                    # เช็คซ้ำ (ต่างกันน้อยกว่า 0.5% ถือว่าซ้ำ)
+                if val < price: # Must be below current price
+                    # Check for duplicates (within 0.5% difference)
                     is_duplicate = False
                     for seen_val in seen_values:
                         if abs(val - seen_val) / seen_val < 0.005: 
@@ -801,10 +824,11 @@ if submit_btn:
                         valid_supports.append((val, label))
                         seen_values.add(val)
 
-            # 4. Display
+            # 4. Display Top 4
             st.markdown("#### 🟢 แนวรับถัดไป"); 
             if valid_supports: 
-                for v, d in valid_supports[:3]: st.write(f"- **{v:.2f}** : {d}")
+                for v, d in valid_supports[:4]: 
+                    st.write(f"- **{v:.2f}** : {d}")
             else: 
                 # Fallback
                 if price > 100: step = 10
