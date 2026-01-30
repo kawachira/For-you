@@ -256,7 +256,7 @@ def ai_obv_smart_booster(report, obv_val, obv_avg, obv_slope, price, price_low_1
     return report
 # ==============================================================================
 
-# --- 5. Data Fetching (MODIFIED TO FORCE DAILY HEADER) ---
+# --- 5. Data Fetching ---
 @st.cache_data(ttl=60, show_spinner=False)
 def get_data_hybrid(symbol, interval, mtf_interval):
     try:
@@ -596,7 +596,7 @@ if submit_btn:
         st.session_state['history_log'].insert(0, log_entry)
         if len(st.session_state['history_log']) > 10: st.session_state['history_log'] = st.session_state['history_log'][:10]
 
-        # DISPLAY (Original 100%)
+        # DISPLAY (Restored OHLC & Pre/Post Market)
         logo_url = f"https://financialmodelingprep.com/image-stock/{symbol_input}.png"
         fallback_url = "https://cdn-icons-png.flaticon.com/512/720/720453.png"
         icon_html = f"""<img src="{logo_url}" onerror="this.onerror=null; this.src='{fallback_url}';" style="height: 50px; width: 50px; border-radius: 50%; vertical-align: middle; margin-right: 10px; object-fit: contain; background-color: white; border: 1px solid #e0e0e0; padding: 2px;">"""
@@ -608,15 +608,46 @@ if submit_btn:
             else: reg_pct = 0.0
             color_text = "#16a34a" if reg_chg and reg_chg > 0 else "#dc2626"; bg_color = "#e8f5ec" if reg_chg and reg_chg > 0 else "#fee2e2"
             st.markdown(f"""<div style="margin-bottom:5px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;"><div style="font-size:40px; font-weight:600; line-height: 1;">{reg_price:,.2f} <span style="font-size: 20px; color: #6b7280; font-weight: 400;">USD</span></div><div style="display:inline-flex; align-items:center; gap:6px; background:{bg_color}; color:{color_text}; padding:4px 12px; border-radius:999px; font-size:18px; font-weight:500;">{arrow_html(reg_chg)} {reg_chg:+.2f} ({reg_pct:.2f}%)</div></div>""", unsafe_allow_html=True)
-            def make_pill(change, percent): color = "#16a34a" if change >= 0 else "#dc2626"; bg = "#e8f5ec" if change >= 0 else "#fee2e2"; arrow = "▲" if change >= 0 else "▼"; return f'<span style="background:{bg}; color:{color}; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; margin-left: 8px;">{arrow} {change:+.2f} ({percent:.2f}%)</span>'
-            ohlc_html = ""; m_state = info.get('marketState', '').upper()
-            if m_state != "REGULAR": 
-                d_open = info.get('regularMarketOpen'); d_high = info.get('dayHigh'); d_low = info.get('dayLow'); d_close = info.get('regularMarketPrice')
-                if d_open and d_high and d_low and d_close: day_chg = info.get('regularMarketChange', 0); val_color = "#16a34a" if day_chg >= 0 else "#dc2626"; ohlc_html = f"""<div style="font-size: 12px; font-weight: 600; margin-bottom: 5px; font-family: 'Source Sans Pro', sans-serif; white-space: nowrap; overflow-x: auto;"><span style="margin-right: 5px; opacity: 0.7;">O</span><span style="color: {val_color}; margin-right: 12px;">{d_open:.2f}</span><span style="margin-right: 5px; opacity: 0.7;">H</span><span style="color: {val_color}; margin-right: 12px;">{d_high:.2f}</span><span style="margin-right: 5px; opacity: 0.7;">L</span><span style="color: {val_color}; margin-right: 12px;">{d_low:.2f}</span><span style="margin-right: 5px; opacity: 0.7;">C</span><span style="color: {val_color};">{d_close:.2f}</span></div>"""
+            
+            # --- OHLC & Pre/Post Market Display (Restored) ---
+            def make_pill(change, percent): 
+                color = "#16a34a" if change >= 0 else "#dc2626" 
+                bg = "#e8f5ec" if change >= 0 else "#fee2e2" 
+                arrow = "▲" if change >= 0 else "▼" 
+                return f'<span style="background:{bg}; color:{color}; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; margin-left: 8px;">{arrow} {change:+.2f} ({percent:.2f}%)</span>'
+            
+            d_open = info.get('regularMarketOpen')
+            d_high = info.get('dayHigh')
+            d_low = info.get('dayLow')
+            d_close = info.get('regularMarketPrice')
+            
+            # แสดง OHLC Bar เสมอถ้ามีข้อมูล
+            if d_open and d_high and d_low and d_close:
+                day_chg = info.get('regularMarketChange', 0)
+                val_color = "#16a34a" if day_chg >= 0 else "#dc2626"
+                ohlc_html = f"""<div style="font-size: 13px; font-weight: 600; margin-bottom: 8px; font-family: 'Source Sans Pro', sans-serif; white-space: nowrap; overflow-x: auto; background-color: #f8f9fa; padding: 6px 12px; border-radius: 8px; display: inline-block;">
+                    <span style="margin-right: 5px; opacity: 0.7;">OPEN</span><span style="color: #333; margin-right: 15px;">{d_open:.2f}</span>
+                    <span style="margin-right: 5px; opacity: 0.7;">HIGH</span><span style="color: #16a34a; margin-right: 15px;">{d_high:.2f}</span>
+                    <span style="margin-right: 5px; opacity: 0.7;">LOW</span><span style="color: #dc2626; margin-right: 15px;">{d_low:.2f}</span>
+                    <span style="margin-right: 5px; opacity: 0.7;">CLOSE</span><span style="color: {val_color};">{d_close:.2f}</span>
+                </div>"""
+                st.markdown(ohlc_html, unsafe_allow_html=True)
+            
+            # แสดง Pre/Post Market
             pre_post_html = ""
-            if info.get('preMarketPrice') and info.get('preMarketChange'): p = info.get('preMarketPrice'); c = info.get('preMarketChange'); prev_p = p - c; pct = (c / prev_p) * 100 if prev_p != 0 else 0; pre_post_html += f'<div style="margin-bottom: 6px; font-size: 12px;">☀️ Pre: <b>{p:.2f}</b> {make_pill(c, pct)}</div>'
-            if info.get('postMarketPrice') and info.get('postMarketChange'): p = info.get('postMarketPrice'); c = info.get('postMarketChange'); prev_p = p - c; pct = (c / prev_p) * 100 if prev_p != 0 else 0; pre_post_html += f'<div style="margin-bottom: 6px; font-size: 12px;">🌙 Post: <b>{p:.2f}</b> {make_pill(c, pct)}</div>'
-            if ohlc_html or pre_post_html: st.markdown(f'<div style="margin-top: -5px; margin-bottom: 15px;">{ohlc_html}{pre_post_html}</div>', unsafe_allow_html=True)
+            if info.get('preMarketPrice') and info.get('preMarketChange'):
+                p = info.get('preMarketPrice'); c = info.get('preMarketChange')
+                prev_p = p - c; pct = (c / prev_p) * 100 if prev_p != 0 else 0
+                pre_post_html += f'<div style="margin-bottom: 4px; font-size: 13px; font-weight:500;">☀️ Pre-Market: <b>{p:.2f}</b> {make_pill(c, pct)}</div>'
+            
+            if info.get('postMarketPrice') and info.get('postMarketChange'):
+                p = info.get('postMarketPrice'); c = info.get('postMarketChange')
+                prev_p = p - c; pct = (c / prev_p) * 100 if prev_p != 0 else 0
+                pre_post_html += f'<div style="margin-bottom: 4px; font-size: 13px; font-weight:500;">🌙 Post-Market: <b>{p:.2f}</b> {make_pill(c, pct)}</div>'
+                
+            if pre_post_html:
+                st.markdown(f'<div style="margin-top: 5px; margin-bottom: 15px;">{pre_post_html}</div>', unsafe_allow_html=True)
+            # --------------------------------------------------
 
         if tf_code == "1h": tf_label = "TF Hour"
         elif tf_code == "1wk": tf_label = "TF Week"
