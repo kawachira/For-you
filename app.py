@@ -225,17 +225,14 @@ def analyze_fundamental(info):
     return {"status": status, "color_class": color_class, "summary": summary_text, "advice": advice, "pe": f"{pe:.2f}" if pe else "N/A", "growth": f"{eps_growth*100:.2f}%" if eps_growth else "N/A"}
 
 # --- SMC: Find Demand Zones (Swing Lows) ---
-def find_demand_zones(df, atr_multiplier=1.0):
+def find_demand_zones(df, atr_multiplier=0.25):
     """
     ค้นหา Demand Zones จาก Swing Low (Fractal 5 แท่ง: ซ้าย 2 ขวา 2)
-    ความกว้างโซน = Swing Low ถึง Swing Low + ATR
-    กรองเฉพาะ Fresh Zones ที่ราคายังไม่ปิดหลุด
+    ความกว้างโซน = Swing Low ถึง Swing Low + (ATR * 0.25)
     """
     zones = []
     if len(df) < 20: return zones
     
-    # ใช้ shift เพื่อหา Swing Low (Fractal)
-    # L[i] < L[i-1], L[i] < L[i-2], L[i] < L[i+1], L[i] < L[i+2]
     lows = df['Low']
     is_swing_low = (lows < lows.shift(1)) & \
                    (lows < lows.shift(2)) & \
@@ -247,7 +244,6 @@ def find_demand_zones(df, atr_multiplier=1.0):
     current_price = df['Close'].iloc[-1]
     
     for date in swing_indices:
-        # ข้ามถ้าเป็นข้อมูลท้ายสุด (เพราะยังไม่คอนเฟิร์มขาขวา)
         if date == df.index[-1] or date == df.index[-2]: continue
         
         swing_low_val = df.loc[date, 'Low']
@@ -255,28 +251,24 @@ def find_demand_zones(df, atr_multiplier=1.0):
         if np.isnan(atr_val): atr_val = swing_low_val * 0.02
         
         zone_bottom = swing_low_val
-        zone_top = swing_low_val + (atr_val * atr_multiplier)
+        zone_top = swing_low_val + (atr_val * atr_multiplier) # แคบลง
         
-        # Freshness Check: ตั้งแต่วันที่เกิด Zone จนถึงปัจจุบัน มีวันไหนราคาปิดหลุด Zone ไหม?
-        # ถ้าหลุดแล้ว ถือว่า Broken Zone (Invalid)
-        future_data = df.loc[date:][1:] # ข้อมูลหลังจากวันเกิด Zone
+        # Filter: ถ้าโซนอยู่ไกลเกิน 20% ของราคาปัจจุบัน ให้ข้าม (ลด Noise)
+        if (current_price - zone_top) / current_price > 0.20: continue
+
+        future_data = df.loc[date:][1:]
         if future_data.empty: continue
         
         is_broken = (future_data['Close'] < zone_bottom).any()
         
         if not is_broken:
-            # คำนวณจำนวนครั้งที่ราคาลงมา Test (Bounce)
             test_count = ((future_data['Low'] <= zone_top) & (future_data['Low'] >= zone_bottom)).sum()
             zones.append({
                 'bottom': zone_bottom,
                 'top': zone_top,
-                'created_at': date,
-                'test_count': test_count,
                 'type': 'Fresh' if test_count == 0 else 'Tested'
             })
             
-    # เรียงจากโซนที่ใกล้ราคาปัจจุบันที่สุด
-    zones.sort(key=lambda x: abs(current_price - x['bottom']))
     return zones
 
 # --- 5. Data Fetching ---
@@ -294,11 +286,6 @@ def get_data_hybrid(symbol, interval, mtf_interval):
         try: raw_info = ticker.info 
         except: raw_info = {} 
 
-        # ... (ส่วนดึงข้อมูล header คงเดิม เพื่อความกระชับ) ...
-        # Header logic omitted for brevity but logic remains same as original 
-        # to calculate changes and header prices.
-        # Assuming df exists...
-        
         df_daily_header = ticker.history(period="5d", interval="1d")
         if not df_daily_header.empty:
             header_price = df_daily_header['Close'].iloc[-1]
@@ -322,7 +309,6 @@ def get_data_hybrid(symbol, interval, mtf_interval):
             'postMarketPrice': raw_info.get('postMarketPrice'), 'postMarketChange': raw_info.get('postMarketChange'),
         }
         
-        # Calendar
         try:
             cal = ticker.calendar
             if cal is not None and not cal.empty:
@@ -341,7 +327,7 @@ def analyze_volume(row, vol_ma):
     elif vol < vol_ma * 0.7: return "Low Volume (Dry)", "red"
     else: return "Normal", "gray"
 
-# --- 7. NEW AI Decision Engine (Hybrid SMC) ---
+# --- 7. AI Decision Engine (Hybrid SMC) ---
 def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx, bb_up, bb_low, 
                        vol_status, mtf_trend, atr_val, mtf_ema200_val,
                        open_price, high, low, close, obv_val, obv_avg,
@@ -352,7 +338,6 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
         try: return float(x) if not np.isnan(float(x)) else np.nan
         except: return np.nan
     
-    # Sanitization
     price = safe_float(price); ema20 = safe_float(ema20); ema50 = safe_float(ema50); ema200 = safe_float(ema200)
     atr_val = safe_float(atr_val); vol_now = safe_float(vol_now); vol_avg = safe_float(vol_avg)
 
@@ -360,19 +345,15 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
     candle_pattern, candle_color, candle_detail, is_big_candle = analyze_candlestick(open_price, high, low, close)
     is_reversal_candle = "Hammer" in candle_pattern or "Doji" in candle_pattern
     
-    # Volume Logic
-    vol_is_dry = vol_now < (vol_avg * 0.8) # Volume แห้งกว่าค่าเฉลี่ย 20%
+    vol_is_dry = vol_now < (vol_avg * 0.8) 
     vol_is_spike = vol_now > (vol_avg * 1.5)
 
     # 2. SMC Location Check
     in_demand_zone = False
     active_zone = None
-    dist_to_zone = 9999
     
     if demand_zones:
-        # Check if price is inside or very close to any fresh demand zone
         for zone in demand_zones:
-            # Check overlap or near touch (within 0.5% buffer)
             if (low <= zone['top'] * 1.005) and (high >= zone['bottom']):
                 in_demand_zone = True
                 active_zone = zone
@@ -387,49 +368,42 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
         elif abs(active_zone['bottom'] - ema50) / price < 0.02:
             is_confluence = True; confluence_msg = "Zone + EMA 50"
 
-    # --- SCORING SYSTEM (The New Brain) ---
+    # --- SCORING SYSTEM ---
     score = 0
     bullish_factors = []
     bearish_factors = []
     situation_insight = "ตลาดแกว่งตัวตามปกติ"
     
-    # A. Trend Filter (ภาพใหญ่)
     trend_is_up = False
     if not np.isnan(ema200):
         if price > ema200: score += 1; trend_is_up = True
-        else: score -= 1 # Under EMA200 (Weak)
+        else: score -= 1 
     
-    # B. SMC Logic (พระเอก)
     if in_demand_zone:
-        # Case 1: Buy on Dip (สวยงาม)
         if vol_is_dry:
             score += 3
-            bullish_factors.append(f"🟢 **Buy on Dip:** ราคาย่อลง Demand Zone ({active_zone['bottom']:.2f}) + Volume แห้ง (รายใหญ่ไม่เท)")
+            bullish_factors.append(f"🟢 **Buy on Dip:** ราคาย่อลง Demand Zone ({active_zone['bottom']:.2f}) + Volume แห้ง")
             situation_insight = "💎 **Sniper Mode:** ราคาเข้าโซนซื้อด้วย Volume ที่ปลอดภัย รอจังหวะงัด"
             if is_reversal_candle:
                 score += 1
                 bullish_factors.append("🕯️ เจอแท่งเทียนกลับตัว (Hammer/Doji) ในโซน")
         
-        # Case 2: Confluence (Super Strong)
         if is_confluence:
             score += 2
             bullish_factors.append(f"⭐ **Golden Floor:** Demand Zone ตรงกับ {confluence_msg}")
         
-        # Case 3: Danger (Panic Drop)
-        if vol_is_spike and close < open_price: # แท่งแดงยาว Vol พีคในโซน
+        if vol_is_spike and close < open_price: 
             score -= 4
             bearish_factors.append("⚠️ **Panic Selling:** ราคาทิ้งดิ่งเข้าโซนด้วย Volume สูง (ระวังรับไม่อยู่)")
             situation_insight = "💣 **Danger:** แรงขายรุนแรงมาก ระวังโซนแตก!"
 
     else:
-        # Not in zone -> Use Standard Momentum Logic
         if price > ema20 and price > ema50: score += 1
         elif price < ema20: score -= 1
         
         if is_big_candle and "Bullish" in candle_pattern:
              score += 1; bullish_factors.append("Big Green Candle (แรงซื้อคุม)")
         
-    # C. Indicator Confirmations
     if rsi < 30 and in_demand_zone:
         score += 2; bullish_factors.append("RSI Oversold ใน Demand Zone (ของถูก)")
     elif rsi > 70:
@@ -437,20 +411,15 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
     
     if mtf_trend == "Bullish": score += 1
     
-    # --- STRATEGY OUTPUT ---
     status_color = "yellow"; banner_title = "Wait & See"; strategy_text = "รอจังหวะ"; holder_advice = "ถือเงินสดรอ"
     
-    # Stop Loss Logic (Structure Stop)
     if in_demand_zone:
-        sl_val = active_zone['bottom'] - (atr_val * 0.5) # เผื่อ Buffer ใต้โซนเล็กน้อย
-        sl_msg = "Under Demand Zone"
+        sl_val = active_zone['bottom'] - (atr_val * 0.5) 
     else:
         sl_val = price - (2 * atr_val) if not np.isnan(atr_val) else price * 0.95
-        sl_msg = "ATR Trailing Stop"
         
     tp_val = price + (3 * atr_val) if not np.isnan(atr_val) else price * 1.05
 
-    # Decision Making
     if score >= 5:
         status_color = "green"; banner_title = "🚀 Sniper Entry: จุดซื้อคมกริบ"; strategy_text = "Aggressive Buy"
         holder_advice = f"โอกาสทอง! ราคาลงมาที่แนวรับสำคัญ + ปัจจัยบวกครบ SL: {sl_val:.2f}"
@@ -484,7 +453,7 @@ if submit_btn:
         # 1. Main Data
         df, info, df_mtf = get_data_hybrid(symbol_input, tf_code, mtf_code)
         
-        # 2. Safety Net Data
+        # 2. Safety Net Data (Week/Day)
         try:
             ticker_stats = yf.Ticker(symbol_input)
             df_stats_day = ticker_stats.history(period="2y", interval="1d")
@@ -493,7 +462,7 @@ if submit_btn:
             df_stats_day = pd.DataFrame(); df_stats_week = pd.DataFrame()
 
     if df is not None and not df.empty and len(df) > 20: 
-        # Indicators Calculation
+        # Indicators
         df['EMA20'] = ta.ema(df['Close'], length=20)
         df['EMA50'] = ta.ema(df['Close'], length=50)
         df['EMA200'] = ta.ema(df['Close'], length=200)
@@ -515,11 +484,9 @@ if submit_btn:
         df['Rolling_Min'] = df['Low'].rolling(window=20).min()
         df['Rolling_Max'] = df['High'].rolling(window=20).max()
 
-        # --- SMC: Find Demand Zones ---
-        # ใช้วิธี Swing Low + ATR Buffer และกรอง Fresh Zones
-        demand_zones = find_demand_zones(df, atr_multiplier=1.0)
+        # Find Demand Zones
+        demand_zones = find_demand_zones(df, atr_multiplier=0.25)
         
-        # Get Last Values
         last = df.iloc[-1]
         price = info.get('regularMarketPrice') if info.get('regularMarketPrice') else last['Close']
         rsi = last['RSI'] if 'RSI' in last else np.nan
@@ -554,7 +521,6 @@ if submit_btn:
         try: prev_open = df['Open'].iloc[-2]; prev_close = df['Close'].iloc[-2]; vol_avg = last['Vol_SMA20']
         except: prev_open = 0; prev_close = 0; vol_avg = 1
 
-        # --- AI ANALYSIS (New Brain) ---
         ai_report = ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_signal, adx_val, bb_upper, bb_lower, 
                                        vol_status, mtf_trend, atr, mtf_ema200_val,
                                        open_p, high_p, low_p, close_p, obv_val, obv_avg,
@@ -573,7 +539,6 @@ if submit_btn:
         icon_html = f"""<img src="{logo_url}" onerror="this.onerror=null; this.src='{fallback_url}';" style="height: 50px; width: 50px; border-radius: 50%; vertical-align: middle; margin-right: 10px; object-fit: contain; background-color: white; border: 1px solid #e0e0e0; padding: 2px;">"""
         st.markdown(f"<h2 style='text-align: center; margin-top: -15px; margin-bottom: 25px;'>{icon_html} {info['longName']} ({symbol_input})</h2>", unsafe_allow_html=True)
 
-        # Market Status
         m_state = info.get('marketState', '').upper()
         if m_state == "REGULAR": st_msg = "🟢 **Market Open:** Real-time Analysis"; st_bg = "#dcfce7"; st_color = "#166534"
         elif m_state in ["PRE", "PREPRE"]: st_msg = "🟠 **Pre-Market:** Pending Open"; st_bg = "#ffedd5"; st_color = "#9a3412"
@@ -637,51 +602,79 @@ if submit_btn:
             atr_pct = (atr / price) * 100 if not np.isnan(atr) and price > 0 else 0; atr_s = f"{atr:.2f} ({atr_pct:.1f}%)" if not np.isnan(atr) else "N/A"
             st.markdown(f"""<div style='background-color: var(--secondary-background-color); padding: 15px; border-radius: 10px; font-size: 0.95rem;'><div style='display:flex; justify-content:space-between; margin-bottom:5px; border-bottom:1px solid #ddd; font-weight:bold;'><span>Indicator</span> <span>Value</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 20</span> <span>{e20_s}</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 50</span> <span>{e50_s}</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 200</span> <span>{e200_s}</span></div><div style='display:flex; justify-content:space-between;'><span>Volume ({vol_str})</span> <span style='color:{vol_color}'>{vol_status.split(' ')[0]}</span></div><div style='display:flex; justify-content:space-between;'><span>ATR</span> <span>{atr_s}</span></div></div>""", unsafe_allow_html=True)
             
-            # --- MODIFIED: Smart Support Logic (Demand Zones + EMA) ---
-            st.subheader("🚧 Key Levels (Hybrid SMC)")
+            # --- UPDATED: Smart Hierarchy Support System ---
+            st.subheader("🚧 Key Levels (Smart Priority)")
             
-            # Combine all supports
-            # 1. Demand Zones (Fresh)
-            support_list = []
-            if demand_zones:
-                for z in demand_zones[:3]: # เอา 3 โซนที่ใกล้ที่สุด
-                    confluence = ""
-                    mid_zone = (z['top'] + z['bottom']) / 2
-                    if not np.isnan(ema200) and abs(mid_zone - ema200)/mid_zone < 0.02: confluence = " + EMA200 🔥"
-                    elif not np.isnan(ema50) and abs(mid_zone - ema50)/mid_zone < 0.02: confluence = " + EMA50"
-                    
-                    status_icon = "🟢" if z['type'] == 'Fresh' else "🟡"
-                    support_list.append({
-                        "val": z['bottom'],
-                        "label": f"Demand Zone {status_icon} [{z['bottom']:.2f}-{z['top']:.2f}]{confluence}"
-                    })
+            candidates = []
             
-            # 2. EMAs (Dynamic)
-            if not np.isnan(ema200) and ema200 < price: support_list.append({"val": ema200, "label": "EMA 200 (Trend Support)"})
-            if not np.isnan(ema50) and ema50 < price: support_list.append({"val": ema50, "label": "EMA 50"})
+            # 1.1 EMAs (Current TF)
+            if not np.isnan(ema20) and ema20 < price: candidates.append({'val': ema20, 'label': f"EMA 20 ({tf_label} - ระยะสั้น)"})
+            if not np.isnan(ema50) and ema50 < price: candidates.append({'val': ema50, 'label': f"EMA 50 ({tf_label})"})
+            if not np.isnan(ema200) and ema200 < price: candidates.append({'val': ema200, 'label': f"EMA 200 ({tf_label} - Trend Support)"})
 
-            # 3. Hard Floors
+            # 1.2 Day EMAs
             if not df_stats_day.empty:
-                low_52w = df_stats_day['Low'].tail(252).min()
-                if low_52w < price: support_list.append({"val": low_52w, "label": "📉 52-Week Low"})
+                d_ema50 = ta.ema(df_stats_day['Close'], length=50).iloc[-1]
+                d_ema200 = ta.ema(df_stats_day['Close'], length=200).iloc[-1]
+                if d_ema50 < price: candidates.append({'val': d_ema50, 'label': "EMA 50 (TF Day - รับระยะกลาง)"})
+                if d_ema200 < price: candidates.append({'val': d_ema200, 'label': "🛡️ EMA 200 (TF Day - รับใหญ่รายวัน)"})
+                low_60d = df_stats_day['Low'].tail(60).min()
+                if low_60d < price: candidates.append({'val': low_60d, 'label': "📉 Low 60d (ฐานสั้น)"})
 
-            # Sort & Filter
-            support_list.sort(key=lambda x: x['val'], reverse=True)
-            valid_supports = []
-            seen_val = set()
-            for item in support_list:
-                if item['val'] < price * 0.999: # ต้องต่ำกว่าราคาปัจจุบัน
-                    is_dup = False
-                    for s in seen_val:
-                        if abs(item['val'] - s)/s < 0.005: is_dup = True; break
-                    if not is_dup:
-                        valid_supports.append(item)
-                        seen_val.add(item['val'])
+            # 1.3 Week EMAs
+            if not df_stats_week.empty:
+                w_ema50 = ta.ema(df_stats_week['Close'], length=50).iloc[-1]
+                w_ema200 = ta.ema(df_stats_week['Close'], length=200).iloc[-1]
+                if w_ema50 < price: candidates.append({'val': w_ema50, 'label': "EMA 50 (TF Week - รับระยะยาว)"})
+                if w_ema200 < price: candidates.append({'val': w_ema200, 'label': "🛡️ EMA 200 (TF Week - รับระดับกองทุน)"})
 
-            st.markdown("#### 🟢 แนวรับ (Support Zones)"); 
-            if valid_supports: 
-                for item in valid_supports[:5]: 
-                    st.write(f"- **{item['label']}**")
+            # 1.4 Demand Zones
+            if demand_zones:
+                for z in demand_zones:
+                    candidates.append({'val': z['bottom'], 'label': f"Demand Zone [{z['bottom']:.2f}-{z['top']:.2f}]"})
+
+            candidates.sort(key=lambda x: x['val'], reverse=True)
+
+            merged_supports = []
+            skip_next = False
+            for i in range(len(candidates)):
+                if skip_next: 
+                    skip_next = False; continue
+                current = candidates[i]
+                if i < len(candidates) - 1:
+                    next_item = candidates[i+1]
+                    dist_pct = (current['val'] - next_item['val']) / current['val']
+                    if dist_pct < 0.01: 
+                        new_label = f"⭐ Confluence Zone ({current['label']} + {next_item['label']})"
+                        merged_supports.append({'val': current['val'], 'label': new_label})
+                        skip_next = True
+                        continue
+                merged_supports.append(current)
+
+            # --- SMART FILTERING (Social Distancing) ---
+            if tf_code == "1h": min_dist = atr * 1.5
+            elif tf_code == "1wk": min_dist = atr * 5.0
+            else: min_dist = atr * 3.0 # Day default
+
+            final_show = []
+            for item in merged_supports:
+                # 1. Limit check (ไกลไปไม่เอา)
+                if (price - item['val']) / price > 0.30 and "EMA 200 (TF Week" not in item['label']:
+                    continue
+                
+                # 2. Distance check
+                if not final_show:
+                    final_show.append(item)
+                else:
+                    last_item = final_show[-1]
+                    dist = abs(last_item['val'] - item['val'])
+                    if dist >= min_dist:
+                        final_show.append(item)
+
+            st.markdown("#### 🟢 แนวรับ (Support Hierarchy)"); 
+            if final_show: 
+                for item in final_show[:4]: # Limit to 4 levels
+                    st.write(f"- **{item['val']:.2f} :** {item['label']}")
             else: 
                 st.error("🚨 ราคาหลุดทุกแนวรับสำคัญ! (All Time Low?)")
 
@@ -711,7 +704,6 @@ if submit_btn:
             </div>
             """, unsafe_allow_html=True)
             
-            # --- AI STRATEGY (The Highlight) ---
             st.subheader("🤖 AI STRATEGY (SMC Logic)")
             color_map = {"green": {"bg": "#dcfce7", "border": "#22c55e", "text": "#14532d"}, "red": {"bg": "#fee2e2", "border": "#ef4444", "text": "#7f1d1d"}, "orange": {"bg": "#ffedd5", "border": "#f97316", "text": "#7c2d12"}, "yellow": {"bg": "#fef9c3", "border": "#eab308", "text": "#713f12"}}
             c_theme = color_map.get(ai_report['status_color'], color_map["yellow"])
