@@ -184,8 +184,7 @@ def filter_levels(levels, threshold_pct=0.025):
     return selected
 )**"
 
-    return {"status": status, "color_class": color_class, "summary": summary_text, "advice": advice, "pe": f"{pe:.2f}" if pe else "N/A", "growth": f"{eps_growth*100:.2f}%" if eps_growth else "N/A"}
-
+    
 # --- SMC: Find Zones ---
 def find_demand_zones(df, atr_multiplier=0.25):
     """ ค้นหา Demand Zones (Swing Low) """
