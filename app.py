@@ -71,7 +71,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 3. ส่วนหัวข้อ ---
-st.markdown("<h1>💎 Ai<br><span style='font-size: 1.5rem; opacity: 0.7;'>Ultimate Sniper (SMC + OBV Hybrid)🧭</span></h1>", unsafe_allow_html=True)
+st.markdown("<h1>💎 Ai<br><span style='font-size: 1.5rem; opacity: 0.7;'>Ultimate Sniper (SMC + OBV Hybrid)🚀</span></h1>", unsafe_allow_html=True)
 
 # --- Form ค้นหา ---
 col_space1, col_form, col_space2 = st.columns([1, 2, 1])
@@ -331,28 +331,28 @@ def get_data_hybrid(symbol, interval, mtf_interval):
         return df, stock_info, df_mtf
     except: return None, None, None
 
-# --- 6. Analysis Logic (Pro Volume Grading) ---
+# --- 6. Analysis Logic (Thai Volume Grading) ---
 def analyze_volume(row, vol_ma):
     vol = row['Volume']
     
     # กัน Error กรณีหุ้นใหม่ หรือไม่มีค่าเฉลี่ย
     if np.isnan(vol_ma) or vol_ma == 0: 
-        return "Normal", "gray"
+        return "☁️ ปกติ", "gray"
     
     # คำนวณ % เทียบค่าเฉลี่ย
     pct = (vol / vol_ma) * 100
     
-    # --- แบ่งเกรด 4 ระดับ ---
+    # --- แบ่งเกรด 4 ระดับ (ภาษาไทย) ---
     if pct >= 250: # ระดับ 4: ระเบิดลง
-        return f"💣 Explosive ({pct:.0f}%)", "#7f1d1d" # สีแดงเข้ม (Extreme)
+        return f"💣 สูงมาก/ระเบิด ({pct:.0f}%)", "#7f1d1d" # สีแดงเข้ม (Extreme)
     elif pct >= 120: # ระดับ 3: คึกคัก
-        return f"🔥 Active ({pct:.0f}%)", "#16a34a" # สีเขียว (Strong)
+        return f"🔥 สูง/คึกคัก ({pct:.0f}%)", "#16a34a" # สีเขียว (Strong)
     elif pct <= 70: # ระดับ 1: แห้ง
-        return f"🌵 Dry / Low ({pct:.0f}%)", "#f59e0b" # สีส้ม (Quiet)
+        return f"🌵 ต่ำ/เบาบาง ({pct:.0f}%)", "#f59e0b" # สีส้ม (Quiet)
     else: # ระดับ 2: ปกติ
-        return f"Normal ({pct:.0f}%)", "gray" # สีเทา
+        return f"☁️ ปกติ ({pct:.0f}%)", "gray" # สีเทา
 
-# --- 7. AI Decision Engine (Hybrid SMC + Smart OBV) ---
+# --- 7. AI Decision Engine (Hybrid SMC + Smart OBV + Safety Net) ---
 def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx, bb_up, bb_low, 
                        vol_status, mtf_trend, atr_val, mtf_ema200_val,
                        open_price, high, low, close, obv_val, obv_avg,
@@ -412,9 +412,6 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
     has_bearish_div = False
     obv_insight = "Volume Flow ปกติ (ตามเทรนด์)"
     
-    # เราใช้ Slope 5 วันในการดูทิศทาง
-    price_slope = 1 if close > prev_close else -1 # Simple slope direction
-    
     if not np.isnan(obv_slope):
         # Bullish Divergence: ราคาลง (หรือนิ่ง) แต่ OBV ชันขึ้น (เจ้าเก็บ)
         if price < ema20 and obv_slope > 0:
@@ -433,7 +430,6 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
     # --- 🌟 NEW: Squeeze Logic Integration ---
     if is_squeeze:
         situation_insight = "💣 **BB Squeeze:** กราฟบีบอัดรุนแรง รอระเบิดเลือกทาง!"
-        # ถ้ามี Squeeze ให้ดู OBV ประกอบเพื่อทายทางระเบิด
         if has_bullish_div:
             score += 1
             situation_insight += " (แนวโน้มระเบิดขึ้นสูง 🚀)"
@@ -444,7 +440,7 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
     # --- SMC Logic ---
     if in_demand_zone:
         # Check Volume Condition for Demand Zone
-        is_vol_safe = "Dry" in vol_grade_text or "Normal" in vol_grade_text
+        is_vol_safe = "ต่ำ" in vol_grade_text or "ปกติ" in vol_grade_text
         
         if is_vol_safe:
             score += 3
@@ -457,12 +453,6 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
         if is_confluence:
             score += 2
             bullish_factors.append(f"⭐ **Golden Floor:** Demand Zone ตรงกับ {confluence_msg}")
-        
-        # Panic Selling Check
-        if "Explosive" in vol_grade_text and close < open_price: 
-            score -= 4
-            bearish_factors.append("⚠️ **Panic Selling:** ราคาทิ้งดิ่งเข้าโซนด้วย Volume มหาศาล (ระวังรับไม่อยู่)")
-            situation_insight = "💣 **Danger:** แรงขายรุนแรงมาก ระวังโซนแตก!"
 
     else:
         if price > ema20 and price > ema50: score += 1
@@ -478,6 +468,20 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
     
     if mtf_trend == "Bullish": score += 1
     
+    # --- 🛡️ GLOBAL SAFETY NET: กฎเหล็กห้ามตาย (แก้บั๊ก SLV Crash) ---
+    # Override ทุกคะแนนถ้าเจอ Panic Sell ของจริง
+    if "ระเบิด" in vol_grade_text and close < open_price:
+        score -= 10  # หักคะแนนยับเยิน เพื่อฆ่าสถานะ Buy ทิ้ง
+        bearish_factors.append("💀 **Market Crash:** ราคาดิ่งนรกพร้อม Volume ระเบิด (หนีตาย!)")
+        situation_insight = "🩸 **Falling Knife:** ตลาดพังทลาย ห้ามรับมีดเด็ดขาด!"
+        # Reset Bullish Factors to avoid confusion
+        bullish_factors = [f for f in bullish_factors if "EMA" not in f and "Trend" not in f] # เก็บแค่เหตุผลเล็กๆ น้อยๆ พอ
+
+    elif "คึกคัก" in vol_grade_text and is_big_candle and close < open_price:
+        score -= 3
+        bearish_factors.append("⚠️ **Heavy Selling:** แรงขายกดดันหนักผิดปกติ")
+
+    # --- Final Status Logic ---
     status_color = "yellow"; banner_title = "Wait & See"; strategy_text = "รอจังหวะ"; holder_advice = "ถือเงินสดรอ"
     
     if in_demand_zone:
@@ -676,20 +680,21 @@ if submit_btn:
         c_ema, c_ai = st.columns([1.5, 2])
         with c_ema:
             st.subheader("📉 Technical Indicators")
-            # --- 🌟 MODIFIED: ใช้ตัวแปรสีจากฟังก์ชัน analyze_volume ---
+            # --- 🌟 MODIFIED: ใช้ตัวแปรสีและข้อความจากฟังก์ชัน analyze_volume (ภาษาไทย) ---
             vol_str = format_volume(vol_now)
             e20_s = f"{ema20:.2f}" if not np.isnan(ema20) else "N/A"
             e50_s = f"{ema50:.2f}" if not np.isnan(ema50) else "N/A"
             e200_s = f"{ema200:.2f}" if not np.isnan(ema200) else "N/A"
             atr_pct = (atr / price) * 100 if not np.isnan(atr) and price > 0 else 0; atr_s = f"{atr:.2f} ({atr_pct:.1f}%)" if not np.isnan(atr) else "N/A"
-            st.markdown(f"""<div style='background-color: var(--secondary-background-color); padding: 15px; border-radius: 10px; font-size: 0.95rem;'><div style='display:flex; justify-content:space-between; margin-bottom:5px; border-bottom:1px solid #ddd; font-weight:bold;'><span>Indicator</span> <span>Value</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 20</span> <span>{e20_s}</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 50</span> <span>{e50_s}</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 200</span> <span>{e200_s}</span></div><div style='display:flex; justify-content:space-between;'><span>Volume ({vol_str})</span> <span style='color:{ai_report['vol_quality_color']}'>{ai_report['vol_quality_msg'].split(' ')[0]}</span></div><div style='display:flex; justify-content:space-between;'><span>ATR</span> <span>{atr_s}</span></div></div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div style='background-color: var(--secondary-background-color); padding: 15px; border-radius: 10px; font-size: 0.95rem;'><div style='display:flex; justify-content:space-between; margin-bottom:5px; border-bottom:1px solid #ddd; font-weight:bold;'><span>Indicator</span> <span>Value</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 20</span> <span>{e20_s}</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 50</span> <span>{e50_s}</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 200</span> <span>{e200_s}</span></div><div style='display:flex; justify-content:space-between;'><span>Volume ({vol_str})</span> <span style='color:{ai_report['vol_quality_color']}'>{ai_report['vol_quality_msg']}</span></div><div style='display:flex; justify-content:space-between;'><span>ATR</span> <span>{atr_s}</span></div></div>""", unsafe_allow_html=True)
             
             # --- DISTANCE FILTER SETTINGS (TUNED) ---
             if tf_code == "1h": min_dist = atr * 1.0  # ลดจาก 1.5
             elif tf_code == "1wk": min_dist = atr * 2.0 # ลดจาก 5.0
             else: min_dist = atr * 1.5 # ลดจาก 3.0 (Day)
 
-            st.subheader("🚧 Key Levels (Smart Priority)")
+            # --- 🌟 MODIFIED: Header ตัดเหลือแค่ Key Levels ---
+            st.subheader("🚧 Key Levels")
             
             # === PART 1: SUPPORTS ===
             candidates_supp = []
@@ -749,7 +754,8 @@ if submit_btn:
                     if is_vip or dist >= min_dist:
                         final_show_supp.append(item)
 
-            st.markdown("#### 🟢 แนวรับ (Support Hierarchy)"); 
+            # --- 🌟 MODIFIED: Sub-header ตัดภาษาอังกฤษออก ---
+            st.markdown("#### 🟢 แนวรับ"); 
             if final_show_supp: 
                 for item in final_show_supp[:4]: st.write(f"- **{item['val']:.2f} :** {item['label']}")
             else: st.error("🚨 ราคาหลุดทุกแนวรับสำคัญ! (All Time Low?)")
@@ -805,7 +811,8 @@ if submit_btn:
                     if is_vip or dist >= min_dist:
                         final_show_res.append(item)
 
-            st.markdown("#### 🔴 แนวต้าน (Resistance Hierarchy)"); 
+            # --- 🌟 MODIFIED: Sub-header ตัดภาษาอังกฤษออก ---
+            st.markdown("#### 🔴 แนวต้าน"); 
             if final_show_res: 
                 for item in final_show_res[:4]: st.write(f"- **{item['val']:.2f} :** {item['label']}")
             else: st.write("- N/A (Blue Sky)")
@@ -823,6 +830,9 @@ if submit_btn:
             
             obv_col = "#22c55e" if "Bullish" in ai_report['obv_insight'] else ("#ef4444" if "Bearish" in ai_report['obv_insight'] else "#6b7280")
             
+            # --- 🌟 MODIFIED: Demand Zone Status (ภาษาไทยชัดเจน) ---
+            dz_status = "✅ อยู่ในโซน (In Zone)" if ai_report['in_demand_zone'] else "❌ นอกโซน (รอราคา)"
+            
             st.markdown(f"""
             <div class='xray-box'>
                 <div class='xray-title'>🕯️ Deep Insight</div>
@@ -833,7 +843,7 @@ if submit_btn:
                 <div class='xray-item'><span>🔥 ความผันผวน (BB):</span> <span style='color:{sq_col}; font-weight:bold;'>{sq_txt}</span></div>
                 <div class='xray-item'><span>📊 คุณภาพ Volume:</span> <span style='color:{vol_q_col}; font-weight:bold;'>{vol_txt}</span></div>
                 <div class='xray-item'><span>🌊 รายใหญ่ (OBV):</span> <span style='color:{obv_col}; font-weight:bold;'>{ai_report['obv_insight']}</span></div>
-                <div class='xray-item'><span>🎯 Demand Zone:</span> <span style='font-weight:bold;'>{"✅ Inside Zone" if ai_report['in_demand_zone'] else "Outside"}</span></div>
+                <div class='xray-item'><span>🎯 Demand Zone:</span> <span style='font-weight:bold;'>{dz_status}</span></div>
             </div>
             """, unsafe_allow_html=True)
             
