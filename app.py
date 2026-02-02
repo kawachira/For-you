@@ -322,7 +322,7 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
     active_zone = None
     if demand_zones:
         for zone in demand_zones:
-            if (low <= zone['top'] * 1.005) and (high >= zone['bottom']):
+            if (low <= zone['top'] * 1.015) and (high >= zone['bottom']):
                 in_demand_zone = True; active_zone = zone; break
     
     # 3. Confluence Check
@@ -469,7 +469,7 @@ if submit_btn:
         # 1. Main Data
         df, info, df_mtf = get_data_hybrid(symbol_input, tf_code, mtf_code)
         
-        # 2. Safety Net Data (Week/Day)
+        # 2. Safety Net Data (Week/Day) - Fetching safely
         try:
             ticker_stats = yf.Ticker(symbol_input)
             df_stats_day = ticker_stats.history(period="2y", interval="1d")
@@ -501,19 +501,16 @@ if submit_btn:
         df['Rolling_Max'] = df['High'].rolling(window=20).max()
         
         # --- 🌟 ADDED: Relative BB Squeeze Logic ---
-        # คำนวณ Bandwidth
         if bbu_col_name and bbl_col_name and 'EMA20' in df.columns:
             df['BB_Width'] = (df[bbu_col_name] - df[bbl_col_name]) / df['EMA20'] * 100
-            # หาค่า Bandwidth ที่แคบที่สุดในรอบ 20 วัน
             df['BB_Width_Min20'] = df['BB_Width'].rolling(window=20).min()
-            # เช็คว่าปัจจุบันแคบใกล้เคียงจุดต่ำสุดไหม (Relative Squeeze)
-            is_squeeze = df['BB_Width'].iloc[-1] <= (df['BB_Width_Min20'].iloc[-1] * 1.1) # ยอมให้กว้างกว่าจุดต่ำสุดได้ 10%
+            is_squeeze = df['BB_Width'].iloc[-1] <= (df['BB_Width_Min20'].iloc[-1] * 1.1) 
         else:
             is_squeeze = False
 
         # Find Zones
         demand_zones = find_demand_zones(df, atr_multiplier=0.25)
-        supply_zones = find_supply_zones(df, atr_multiplier=0.25) # NEW for Resistance
+        supply_zones = find_supply_zones(df, atr_multiplier=0.25) 
         
         last = df.iloc[-1]
         price = info.get('regularMarketPrice') if info.get('regularMarketPrice') else last['Close']
@@ -561,7 +558,7 @@ if submit_btn:
         st.session_state['history_log'].insert(0, log_entry)
         if len(st.session_state['history_log']) > 10: st.session_state['history_log'] = st.session_state['history_log'][:10]
 
-               # DISPLAY
+        # DISPLAY
         logo_url = f"https://financialmodelingprep.com/image-stock/{symbol_input}.png"
         fallback_url = "https://cdn-icons-png.flaticon.com/512/720/720453.png"
         icon_html = f"""<img src="{logo_url}" onerror="this.onerror=null; this.src='{fallback_url}';" style="height: 50px; width: 50px; border-radius: 50%; vertical-align: middle; margin-right: 10px; object-fit: contain; background-color: white; border: 1px solid #e0e0e0; padding: 2px;">"""
@@ -600,7 +597,6 @@ if submit_btn:
         elif st_color == "red": c2.error(f"📉 {main_status}\n\n**{tf_label}**")
         else: c2.warning(f"⚖️ {main_status}\n\n**{tf_label}**")
 
-        # --- Adjusted Columns (Removed Fundamental) ---
         c3, c4 = st.columns(2)
         icon_flat_svg = """<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#a3a3a3"><circle cx="12" cy="12" r="10"/></svg>"""
         
@@ -623,7 +619,12 @@ if submit_btn:
             e50_s = f"{ema50:.2f}" if not np.isnan(ema50) else "N/A"
             e200_s = f"{ema200:.2f}" if not np.isnan(ema200) else "N/A"
             atr_pct = (atr / price) * 100 if not np.isnan(atr) and price > 0 else 0; atr_s = f"{atr:.2f} ({atr_pct:.1f}%)" if not np.isnan(atr) else "N/A"
-            st.markdown(f"""<div style='background-color: var(--secondary-background-color); padding: 15px; border-radius: 10px; font-size: 0.95rem;'><div style='display:flex; justify-content:space-between; margin-bottom:5px; border-bottom:1px solid #ddd; font-weight:bold;'><span>Indicator</span> <span>Value</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 20</span> <span>{e20_s}</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 50</span> <span>{e50_s}</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 200</span> <span>{e200_s}</span></div><div style='display:flex; justify-content:space-between;'><span>Volume ({vol_str})</span> <span style='color:{ai_report['vol_quality_color']}'>{ai_report['vol_quality_msg']}</span></div><div style='display:flex; justify-content:space-between;'><span>ATR</span> <span>{atr_s}</span></div></div>""", unsafe_allow_html=True)
+            
+            # --- BB Display (Preserved) ---
+            bb_s = f"{bb_upper:.2f} / {bb_lower:.2f}" if not np.isnan(bb_upper) else "N/A"
+            # -------------------------------
+
+            st.markdown(f"""<div style='background-color: var(--secondary-background-color); padding: 15px; border-radius: 10px; font-size: 0.95rem;'><div style='display:flex; justify-content:space-between; margin-bottom:5px; border-bottom:1px solid #ddd; font-weight:bold;'><span>Indicator</span> <span>Value</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 20</span> <span>{e20_s}</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 50</span> <span>{e50_s}</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 200</span> <span>{e200_s}</span></div><div style='display:flex; justify-content:space-between;'><span>Volume ({vol_str})</span> <span style='color:{ai_report['vol_quality_color']}'>{ai_report['vol_quality_msg']}</span></div><div style='display:flex; justify-content:space-between;'><span>ATR</span> <span>{atr_s}</span></div><div style='display:flex; justify-content:space-between;'><span>BB (Up/Low)</span> <span>{bb_s}</span></div></div>""", unsafe_allow_html=True)
             
             # --- DISTANCE FILTER SETTINGS (TUNED) ---
             if tf_code == "1h": min_dist = atr * 1.0 
@@ -632,7 +633,7 @@ if submit_btn:
 
             st.subheader("🚧 Key Levels")
             
-            # === PART 1: SUPPORTS ===
+            # === PART 1: SUPPORTS (FIXED FOR SAFETY) ===
             candidates_supp = []
             if not np.isnan(ema20) and ema20 < price: candidates_supp.append({'val': ema20, 'label': f"EMA 20 ({tf_label} - ระยะสั้น)"})
             if not np.isnan(ema50) and ema50 < price: candidates_supp.append({'val': ema50, 'label': f"EMA 50 ({tf_label})"})
@@ -640,18 +641,38 @@ if submit_btn:
             if not np.isnan(bb_lower) and bb_lower < price: candidates_supp.append({'val': bb_lower, 'label': f"BB Lower ({tf_label} - แนวรับผันผวน)"})
 
             if not df_stats_day.empty:
-                d_ema50 = ta.ema(df_stats_day['Close'], length=50).iloc[-1]
-                d_ema200 = ta.ema(df_stats_day['Close'], length=200).iloc[-1]
-                if d_ema50 < price: candidates_supp.append({'val': d_ema50, 'label': "EMA 50 (TF Day - รับระยะกลาง)"})
-                if d_ema200 < price: candidates_supp.append({'val': d_ema200, 'label': "🛡️ EMA 200 (TF Day - รับใหญ่รายวัน)"})
-                low_60d = df_stats_day['Low'].tail(60).min()
-                if low_60d < price: candidates_supp.append({'val': low_60d, 'label': "📉 Low 60d (ฐานสั้น)"})
+                # --- SAFE FETCHING FOR DAY ---
+                try: 
+                    d_ema50_s = ta.ema(df_stats_day['Close'], length=50)
+                    d_ema50 = d_ema50_s.iloc[-1] if d_ema50_s is not None else np.nan
+                except: d_ema50 = np.nan
+                
+                try: 
+                    d_ema200_s = ta.ema(df_stats_day['Close'], length=200)
+                    d_ema200 = d_ema200_s.iloc[-1] if d_ema200_s is not None else np.nan
+                except: d_ema200 = np.nan
+
+                if not np.isnan(d_ema50) and d_ema50 < price: candidates_supp.append({'val': d_ema50, 'label': "EMA 50 (TF Day - รับระยะกลาง)"})
+                if not np.isnan(d_ema200) and d_ema200 < price: candidates_supp.append({'val': d_ema200, 'label': "🛡️ EMA 200 (TF Day - รับใหญ่รายวัน)"})
+                
+                try: low_60d = df_stats_day['Low'].tail(60).min()
+                except: low_60d = np.nan
+                if not np.isnan(low_60d) and low_60d < price: candidates_supp.append({'val': low_60d, 'label': "📉 Low 60d (ฐานสั้น)"})
 
             if not df_stats_week.empty:
-                w_ema50 = ta.ema(df_stats_week['Close'], length=50).iloc[-1]
-                w_ema200 = ta.ema(df_stats_week['Close'], length=200).iloc[-1]
-                if w_ema50 < price: candidates_supp.append({'val': w_ema50, 'label': "EMA 50 (TF Week - รับระยะยาว)"})
-                if w_ema200 < price: candidates_supp.append({'val': w_ema200, 'label': "🛡️ EMA 200 (TF Week - รับระดับกองทุน)"})
+                # --- SAFE FETCHING FOR WEEK (CRASH FIX HERE) ---
+                try:
+                    w_ema50_s = ta.ema(df_stats_week['Close'], length=50)
+                    w_ema50 = w_ema50_s.iloc[-1] if w_ema50_s is not None else np.nan
+                except: w_ema50 = np.nan
+                
+                try:
+                    w_ema200_s = ta.ema(df_stats_week['Close'], length=200)
+                    w_ema200 = w_ema200_s.iloc[-1] if w_ema200_s is not None else np.nan
+                except: w_ema200 = np.nan
+
+                if not np.isnan(w_ema50) and w_ema50 < price: candidates_supp.append({'val': w_ema50, 'label': "EMA 50 (TF Week - รับระยะยาว)"})
+                if not np.isnan(w_ema200) and w_ema200 < price: candidates_supp.append({'val': w_ema200, 'label': "🛡️ EMA 200 (TF Week - รับระดับกองทุน)"})
 
             if demand_zones:
                 for z in demand_zones: candidates_supp.append({'val': z['bottom'], 'label': f"Demand Zone [{z['bottom']:.2f}-{z['top']:.2f}]"})
@@ -688,7 +709,7 @@ if submit_btn:
                 for item in final_show_supp[:4]: st.write(f"- **{item['val']:.2f} :** {item['label']}")
             else: st.error("🚨 ราคาหลุดทุกแนวรับสำคัญ! (All Time Low?)")
 
-            # === PART 2: RESISTANCES ===
+            # === PART 2: RESISTANCES (FIXED FOR SAFETY) ===
             candidates_res = []
             if not np.isnan(ema20) and ema20 > price: candidates_res.append({'val': ema20, 'label': f"EMA 20 ({tf_label} - ต้านสั้น)"})
             if not np.isnan(ema50) and ema50 > price: candidates_res.append({'val': ema50, 'label': f"EMA 50 ({tf_label})"})
@@ -696,16 +717,32 @@ if submit_btn:
             if not np.isnan(bb_upper) and bb_upper > price: candidates_res.append({'val': bb_upper, 'label': f"BB Upper ({tf_label} - เพดาน)"})
             
             if not df_stats_day.empty:
-                d_ema50 = ta.ema(df_stats_day['Close'], length=50).iloc[-1]
-                if d_ema50 > price: candidates_res.append({'val': d_ema50, 'label': "EMA 50 (TF Day)"})
-                high_60d = df_stats_day['High'].tail(60).max()
-                if high_60d > price: candidates_res.append({'val': high_60d, 'label': "🏔️ High 60d (ดอย 3 เดือน)"})
+                # --- SAFE FETCHING FOR DAY ---
+                try: 
+                    d_ema50_s = ta.ema(df_stats_day['Close'], length=50)
+                    d_ema50 = d_ema50_s.iloc[-1] if d_ema50_s is not None else np.nan
+                except: d_ema50 = np.nan
+
+                if not np.isnan(d_ema50) and d_ema50 > price: candidates_res.append({'val': d_ema50, 'label': "EMA 50 (TF Day)"})
+                
+                try: high_60d = df_stats_day['High'].tail(60).max()
+                except: high_60d = np.nan
+                if not np.isnan(high_60d) and high_60d > price: candidates_res.append({'val': high_60d, 'label': "🏔️ High 60d (ดอย 3 เดือน)"})
 
             if not df_stats_week.empty:
-                w_ema50 = ta.ema(df_stats_week['Close'], length=50).iloc[-1]
-                w_ema200 = ta.ema(df_stats_week['Close'], length=200).iloc[-1]
-                if w_ema50 > price: candidates_res.append({'val': w_ema50, 'label': "EMA 50 (TF Week - ต้านระยะยาว)"})
-                if w_ema200 > price: candidates_res.append({'val': w_ema200, 'label': "🛡️ EMA 200 (TF Week - ต้านระดับกองทุน)"})
+                # --- SAFE FETCHING FOR WEEK (CRASH FIX HERE) ---
+                try:
+                    w_ema50_s = ta.ema(df_stats_week['Close'], length=50)
+                    w_ema50 = w_ema50_s.iloc[-1] if w_ema50_s is not None else np.nan
+                except: w_ema50 = np.nan
+                
+                try:
+                    w_ema200_s = ta.ema(df_stats_week['Close'], length=200)
+                    w_ema200 = w_ema200_s.iloc[-1] if w_ema200_s is not None else np.nan
+                except: w_ema200 = np.nan
+
+                if not np.isnan(w_ema50) and w_ema50 > price: candidates_res.append({'val': w_ema50, 'label': "EMA 50 (TF Week - ต้านระยะยาว)"})
+                if not np.isnan(w_ema200) and w_ema200 > price: candidates_res.append({'val': w_ema200, 'label': "🛡️ EMA 200 (TF Week - ต้านระดับกองทุน)"})
                 
             if supply_zones:
                 for z in supply_zones: candidates_res.append({'val': z['top'], 'label': f"Supply Zone [{z['bottom']:.2f}-{z['top']:.2f}]"})
@@ -798,5 +835,3 @@ if submit_btn:
         if st.session_state['history_log']: st.dataframe(pd.DataFrame(st.session_state['history_log']), use_container_width=True, hide_index=True)
 
     else: st.error("ไม่พบข้อมูลหุ้น หรือข้อมูลไม่เพียงพอสำหรับคำนวณ Swing Low")
-
-       
