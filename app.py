@@ -459,7 +459,6 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
         "in_demand_zone": in_demand_zone, "confluence_msg": confluence_msg,
         "is_squeeze": is_squeeze, "obv_insight": obv_insight
     }
-
 # --- 8. Display Execution ---
 
 if submit_btn:
@@ -469,7 +468,7 @@ if submit_btn:
         # 1. Main Data
         df, info, df_mtf = get_data_hybrid(symbol_input, tf_code, mtf_code)
         
-        # 2. Safety Net Data (Week/Day) - Fetching safely
+        # 2. Safety Net Data (Week/Day)
         try:
             ticker_stats = yf.Ticker(symbol_input)
             df_stats_day = ticker_stats.history(period="2y", interval="1d")
@@ -478,29 +477,39 @@ if submit_btn:
             df_stats_day = pd.DataFrame(); df_stats_week = pd.DataFrame()
 
     if df is not None and not df.empty and len(df) > 20: 
-        # Indicators
+        # --- Indicator Calculation ---
         df['EMA20'] = ta.ema(df['Close'], length=20)
         df['EMA50'] = ta.ema(df['Close'], length=50)
-        df['EMA200'] = ta.ema(df['Close'], length=200)
+        
+        # Safe EMA200 Calculation
+        ema200_series = ta.ema(df['Close'], length=200)
+        df['EMA200'] = ema200_series if ema200_series is not None else np.nan
+
         df['RSI'] = ta.rsi(df['Close'], length=14)
         df['ATR'] = ta.atr(df['High'], df['Low'], df['Close'], length=14)
-        macd = ta.macd(df['Close']); df = pd.concat([df, macd], axis=1)
+        
+        macd = ta.macd(df['Close'])
+        if macd is not None: df = pd.concat([df, macd], axis=1)
+        
         bbands = ta.bbands(df['Close'], length=20, std=2)
         if bbands is not None and len(bbands.columns) >= 3:
             bbl_col_name, bbu_col_name = bbands.columns[0], bbands.columns[2]
             df = pd.concat([df, bbands], axis=1)
         else: bbl_col_name, bbu_col_name = None, None
-        adx = ta.adx(df['High'], df['Low'], df['Close'], length=14); df = pd.concat([df, adx], axis=1)
+        
+        adx = ta.adx(df['High'], df['Low'], df['Close'], length=14)
+        if adx is not None: df = pd.concat([df, adx], axis=1)
+        
         df['Vol_SMA20'] = ta.sma(df['Volume'], length=20)
         
-        # --- 🌟 ADDED: OBV & Rolling Logic ---
+        # --- OBV & Rolling ---
         df['OBV'] = ta.obv(df['Close'], df['Volume'])
         df['OBV_SMA20'] = ta.sma(df['OBV'], length=20)
         df['OBV_Slope'] = ta.slope(df['OBV'], length=5) 
         df['Rolling_Min'] = df['Low'].rolling(window=20).min()
         df['Rolling_Max'] = df['High'].rolling(window=20).max()
         
-        # --- 🌟 ADDED: Relative BB Squeeze Logic ---
+        # --- Relative BB Squeeze ---
         if bbu_col_name and bbl_col_name and 'EMA20' in df.columns:
             df['BB_Width'] = (df[bbu_col_name] - df[bbl_col_name]) / df['EMA20'] * 100
             df['BB_Width_Min20'] = df['BB_Width'].rolling(window=20).min()
@@ -508,25 +517,41 @@ if submit_btn:
         else:
             is_squeeze = False
 
-        # Find Zones
+        # --- Zones ---
         demand_zones = find_demand_zones(df, atr_multiplier=0.25)
-        supply_zones = find_supply_zones(df, atr_multiplier=0.25) 
+        supply_zones = find_supply_zones(df, atr_multiplier=0.25)
         
+        # --- Prepare Last Values ---
         last = df.iloc[-1]
         price = info.get('regularMarketPrice') if info.get('regularMarketPrice') else last['Close']
-        rsi = last['RSI'] if 'RSI' in last else np.nan
-        atr = last['ATR'] if 'ATR' in last else np.nan
         ema20 = last['EMA20'] if 'EMA20' in last else np.nan
         ema50 = last['EMA50'] if 'EMA50' in last else np.nan
         ema200 = last['EMA200'] if 'EMA200' in last else np.nan
+        
+        # -------------------------------------------------------------------------
+        # 🛑 STOPPING LOGIC: ถ้าเป็น TF Week แล้วข้อมูลไม่พอ (ไม่มี EMA200) ให้หยุดทันที
+        # -------------------------------------------------------------------------
+        if tf_code == "1wk":
+            # เช็คว่า EMA200 เป็น None หรือ NaN หรือไม่
+            if ema200 is None or (isinstance(ema200, float) and np.isnan(ema200)):
+                st.error(f"⚠️ **ข้อมูลไม่เพียงพอสำหรับการคำนวณใน Timeframe Week** (ต้องการข้อมูลย้อนหลังอย่างน้อย 200 สัปดาห์)")
+                st.stop() # <--- หยุดการทำงานตรงนี้ ไม่แสดงผลส่วนอื่นต่อ
+        # -------------------------------------------------------------------------
+
+        # ... (ส่วนที่เหลือจะทำงานก็ต่อเมื่อข้อมูลครบถ้วน) ...
+        rsi = last['RSI'] if 'RSI' in last else np.nan
+        atr = last['ATR'] if 'ATR' in last else np.nan
         vol_now = last['Volume']
         open_p = last['Open']; high_p = last['High']; low_p = last['Low']; close_p = last['Close']
+        
         try: macd_val, macd_signal = last['MACD_12_26_9'], last['MACDs_12_26_9']
         except: macd_val, macd_signal = np.nan, np.nan
         try: adx_val = last['ADX_14']
         except: adx_val = np.nan
+        
         if bbu_col_name and bbl_col_name: bb_upper, bb_lower = last[bbu_col_name], last[bbl_col_name]
         else: bb_upper, bb_lower = price * 1.05, price * 0.95
+        
         vol_status, vol_color = analyze_volume(last, last['Vol_SMA20'])
         
         try: obv_val = last['OBV']; obv_avg = last['OBV_SMA20']
@@ -603,11 +628,19 @@ if submit_btn:
         with c3:
             rsi_str = f"{rsi:.2f}" if not np.isnan(rsi) else "N/A"; rsi_text = get_rsi_interpretation(rsi)
             st.markdown(custom_metric_html("⚡ RSI (14)", rsi_str, rsi_text, "gray", icon_flat_svg), unsafe_allow_html=True)
+            
         with c4:
             adx_disp = float(adx_val) if not np.isnan(adx_val) else np.nan
-            is_uptrend = price >= ema200 if not np.isnan(ema200) else True
-            adx_text = get_adx_interpretation(adx_disp, is_uptrend)
-            adx_str = f"{adx_disp:.2f}" if not np.isnan(adx_disp) else "N/A"
+            # --- FIX: Safe check for EMA200 ---
+            if ema200 is not None and not np.isnan(ema200) and not np.isnan(adx_disp):
+                is_uptrend = price >= ema200
+                adx_text = get_adx_interpretation(adx_disp, is_uptrend)
+                adx_str = f"{adx_disp:.2f}"
+            else:
+                is_uptrend = True 
+                adx_str = "N/A"
+                adx_text = "N/A"
+            # ------------------------------------
             st.markdown(custom_metric_html("💪 ADX Strength", adx_str, adx_text, "gray", icon_flat_svg), unsafe_allow_html=True)
         
         st.write("") 
@@ -617,7 +650,14 @@ if submit_btn:
             vol_str = format_volume(vol_now)
             e20_s = f"{ema20:.2f}" if not np.isnan(ema20) else "N/A"
             e50_s = f"{ema50:.2f}" if not np.isnan(ema50) else "N/A"
-            e200_s = f"{ema200:.2f}" if not np.isnan(ema200) else "N/A"
+            
+            # --- 🔥 FIX: Ultimate Safe Formatting for EMA200 ---
+            if ema200 is not None and not np.isnan(ema200):
+                 e200_s = f"{ema200:.2f}"
+            else:
+                 e200_s = "N/A"
+            # ---------------------------------------------------
+
             atr_pct = (atr / price) * 100 if not np.isnan(atr) and price > 0 else 0; atr_s = f"{atr:.2f} ({atr_pct:.1f}%)" if not np.isnan(atr) else "N/A"
             
             # --- BB Display (Preserved) ---
@@ -660,7 +700,7 @@ if submit_btn:
                 if not np.isnan(low_60d) and low_60d < price: candidates_supp.append({'val': low_60d, 'label': "📉 Low 60d (ฐานสั้น)"})
 
             if not df_stats_week.empty:
-                # --- SAFE FETCHING FOR WEEK (CRASH FIX HERE) ---
+                # --- SAFE FETCHING FOR WEEK ---
                 try:
                     w_ema50_s = ta.ema(df_stats_week['Close'], length=50)
                     w_ema50 = w_ema50_s.iloc[-1] if w_ema50_s is not None else np.nan
@@ -730,7 +770,7 @@ if submit_btn:
                 if not np.isnan(high_60d) and high_60d > price: candidates_res.append({'val': high_60d, 'label': "🏔️ High 60d (ดอย 3 เดือน)"})
 
             if not df_stats_week.empty:
-                # --- SAFE FETCHING FOR WEEK (CRASH FIX HERE) ---
+                # --- SAFE FETCHING FOR WEEK ---
                 try:
                     w_ema50_s = ta.ema(df_stats_week['Close'], length=50)
                     w_ema50 = w_ema50_s.iloc[-1] if w_ema50_s is not None else np.nan
@@ -835,3 +875,5 @@ if submit_btn:
         if st.session_state['history_log']: st.dataframe(pd.DataFrame(st.session_state['history_log']), use_container_width=True, hide_index=True)
 
     else: st.error("ไม่พบข้อมูลหุ้น หรือข้อมูลไม่เพียงพอสำหรับคำนวณ Swing Low")
+
+
