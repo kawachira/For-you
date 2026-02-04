@@ -506,7 +506,6 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
         "in_demand_zone": in_demand_zone, "confluence_msg": confluence_msg,
         "is_squeeze": is_squeeze, "obv_insight": obv_insight
     }
-
 # --- 8. Main Execution & Display (ส่วนแสดงผลหลัก) ---
 
 # 1. อัปเดต State เมื่อกดปุ่มค้นหา
