@@ -1,5 +1,7 @@
 streamlit
-yfinance>=0.2.40
+yfinance
 pandas
 pandas_ta
-plotly
+numpy
+gspread
+oauth2client
