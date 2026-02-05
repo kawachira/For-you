@@ -228,6 +228,7 @@ def get_adx_interpretation(adx, is_uptrend):
     return "Weak/Sideway (ตลาดไร้ทิศทาง)"
 
 # --- Google Sheets Function ---
+# --- แก้ไขฟังก์ชัน save_to_gsheet ให้รับค่าครบทุกช่อง ---
 def save_to_gsheet(data_dict):
     try:
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
@@ -236,17 +237,25 @@ def save_to_gsheet(data_dict):
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
             client = gspread.authorize(creds)
             sheet = client.open("Stock_Analysis_Log").sheet1
+            
+            # จัดเรียงข้อมูลลงคอลัมน์ (ต้องตรงกับ Log Entry)
             row = [
-                datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%H:%M:%S"),
-                data_dict.get("หุ้น", ""), data_dict.get("ราคา", ""),
-                data_dict.get("Score", ""), data_dict.get("คำแนะนำ", ""), data_dict.get("Action", ""),
+                datetime.now().strftime("%Y-%m-%d"), # A: วันที่
+                data_dict.get("เวลา", ""),           # B: เวลา
+                data_dict.get("หุ้น", ""),           # C: ชื่อหุ้น
+                data_dict.get("TF", ""),             # D: Timeframe (เพิ่มใหม่)
+                data_dict.get("ราคา", ""),           # E: ราคา
+                data_dict.get("Change%", ""),        # F: % เปลี่ยนแปลง (เพิ่มใหม่)
+                data_dict.get("สถานะ", ""),          # G: สถานะ (เพิ่มใหม่)
+                data_dict.get("Action", ""),         # H: คำแนะนำ
+                data_dict.get("SL", ""),             # I: Stop Loss (เพิ่มใหม่)
+                data_dict.get("TP", "")              # J: Take Profit (เพิ่มใหม่)
             ]
             sheet.append_row(row)
             return True
         return False
     except Exception as e:
         return False
-
 # --- SMC: Find Zones ---
 def find_demand_zones(df, atr_multiplier=0.25):
     zones = []
@@ -548,7 +557,6 @@ def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx
         "in_demand_zone": in_demand_zone, "confluence_msg": confluence_msg,
         "is_squeeze": is_squeeze, "obv_insight": obv_insight
     }
-
 # --- 8. Main Execution & Display (ส่วนแสดงผลหลัก) ---
 
 # 1. อัปเดต State เมื่อกดปุ่มค้นหา
@@ -556,9 +564,9 @@ if submit_btn:
     st.session_state['search_triggered'] = True
     st.session_state['last_symbol'] = symbol_input_raw
 
-# 2. เริ่มทำงานถ้ามีการ Trigger (ไม่ว่าจะกด Search หรือกด Save)
+# 2. เริ่มทำงานถ้ามีการ Trigger
 if st.session_state['search_triggered']:
-    symbol_input = st.session_state['last_symbol'] # ใช้ชื่อหุ้นจากความจำ
+    symbol_input = st.session_state['last_symbol']
     
     st.divider()
     st.markdown("""<style>body { overflow: auto !important; }</style>""", unsafe_allow_html=True)
@@ -567,7 +575,7 @@ if st.session_state['search_triggered']:
         # 1. Main Data
         df, info, df_mtf = get_data_hybrid(symbol_input, tf_code, mtf_code)
         
-        # 2. Safety Net Data (Week/Day สำหรับหาแนวรับ VIP)
+        # 2. Safety Net Data
         try:
             ticker_stats = yf.Ticker(symbol_input)
             df_stats_day = ticker_stats.history(period="2y", interval="1d")
@@ -576,11 +584,10 @@ if st.session_state['search_triggered']:
             df_stats_day = pd.DataFrame(); df_stats_week = pd.DataFrame()
 
     if df is not None and not df.empty and len(df) > 20: 
-        # --- Indicator Calculation (คำนวณค่าต่างๆ เพื่อป้อนให้ AI) ---
+        # --- Indicator Calculation ---
         df['EMA20'] = ta.ema(df['Close'], length=20)
         df['EMA50'] = ta.ema(df['Close'], length=50)
         
-        # Safe EMA200 Calculation
         ema200_series = ta.ema(df['Close'], length=200)
         df['EMA200'] = ema200_series if ema200_series is not None else np.nan
 
@@ -601,7 +608,6 @@ if st.session_state['search_triggered']:
         
         df['Vol_SMA20'] = ta.sma(df['Volume'], length=20)
         
-        # --- OBV & Slope Calculation ---
         df['OBV'] = ta.obv(df['Close'], df['Volume'])
         df['OBV_SMA20'] = ta.sma(df['OBV'], length=20)
         df['OBV_Slope'] = ta.slope(df['OBV'], length=5) 
@@ -609,7 +615,6 @@ if st.session_state['search_triggered']:
         df['Rolling_Min'] = df['Low'].rolling(window=20).min()
         df['Rolling_Max'] = df['High'].rolling(window=20).max()
         
-        # --- Relative BB Squeeze ---
         if bbu_col_name and bbl_col_name and 'EMA20' in df.columns:
             df['BB_Width'] = (df[bbu_col_name] - df[bbl_col_name]) / df['EMA20'] * 100
             df['BB_Width_Min20'] = df['BB_Width'].rolling(window=20).min()
@@ -617,21 +622,18 @@ if st.session_state['search_triggered']:
         else:
             is_squeeze = False
 
-        # --- Zones ---
         demand_zones = find_demand_zones(df, atr_multiplier=0.25)
         supply_zones = find_supply_zones(df, atr_multiplier=0.25)
         
-        # --- Prepare Last Values ---
         last = df.iloc[-1]
         price = info.get('regularMarketPrice') if info.get('regularMarketPrice') else last['Close']
         ema20 = last['EMA20'] if 'EMA20' in last else np.nan
         ema50 = last['EMA50'] if 'EMA50' in last else np.nan
         ema200 = last['EMA200'] if 'EMA200' in last else np.nan
         
-        # 🛑 SAFETY CHECK: ข้อมูล Week ไม่พอ
         if tf_code == "1wk":
             if ema200 is None or (isinstance(ema200, float) and np.isnan(ema200)):
-                st.error(f"⚠️ **ข้อมูลไม่เพียงพอสำหรับการคำนวณใน Timeframe Week** (ต้องการข้อมูลย้อนหลังอย่างน้อย 200 สัปดาห์)")
+                st.error(f"⚠️ **ข้อมูลไม่เพียงพอสำหรับ TF Week** (ต้องการ 200 สัปดาห์)")
                 st.stop() 
 
         rsi = last['RSI'] if 'RSI' in last else np.nan
@@ -653,9 +655,7 @@ if st.session_state['search_triggered']:
         except: obv_val = np.nan; obv_avg = np.nan
         
         obv_slope_val = last.get('OBV_Slope', np.nan)
-        rolling_min_val = last.get('Rolling_Min', np.nan)
-        rolling_max_val = last.get('Rolling_Max', np.nan)
-
+        
         mtf_trend = "Sideway"; mtf_ema200_val = 0
         if df_mtf is not None and not df_mtf.empty:
             if 'EMA200' not in df_mtf.columns: df_mtf['EMA200'] = ta.ema(df_mtf['Close'], length=200)
@@ -667,29 +667,62 @@ if st.session_state['search_triggered']:
         try: prev_open = df['Open'].iloc[-2]; prev_close = df['Close'].iloc[-2]; vol_avg = last['Vol_SMA20']
         except: prev_open = 0; prev_close = 0; vol_avg = 1
 
-        # ==============================================================================
-        # 🔑 KEY UPGRADE: ตัดข้อมูล 4 แท่ง เพื่อส่งเข้าสมอง (God Mode Connection)
-        # ==============================================================================
-        df_candles_4 = df.iloc[-4:]  # ตัด 4 แถวล่าสุด
+        # 🔑 ตัดข้อมูล 4 แท่ง
+        df_candles_4 = df.iloc[-4:] 
 
-        # 🧠 CALL THE UPGRADED AI BRAIN
+        # 🧠 CALL GOD MODE BRAIN
         ai_report = ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_signal, adx_val, bb_upper, bb_lower, 
                                        vol_status, mtf_trend, atr, mtf_ema200_val,
                                        open_p, high_p, low_p, close_p, obv_val, obv_avg,
                                        obv_slope_val, 
                                        prev_open, prev_close, vol_now, vol_avg, demand_zones, 
                                        is_squeeze,
-                                       df_candles_4) # <--- ส่งข้อมูล 4 แท่งเข้าสมอง
+                                       df_candles_4)
 
-        # Log Management
+                # --- LOG MANAGEMENT (แก้ไขสูตร % Change ให้ถูกต้อง) ---
         current_time = datetime.now().strftime("%H:%M:%S")
-        log_entry = { "เวลา": current_time, "หุ้น": symbol_input, "ราคา": f"{price:.2f}", "Score": f"{ai_report['status_color'].upper()}", "คำแนะนำ": ai_report['banner_title'].split(':')[0], "Action": ai_report['strategy'] }
+        
+        # 1. ดึง % Change และ *คูณ 100* เพื่อให้เป็นเปอร์เซ็นต์ที่ถูกต้อง
+        pct_change = info.get('regularMarketChangePercent', 0)
+        pct_str = f"{pct_change * 100:+.2f}%" if pct_change is not None else "0.00%" 
+
+        # 2. แปลง Action เป็นภาษาไทย
+        raw_strat = ai_report['strategy']
+        if "Aggressive Buy" in raw_strat: th_action = "ลุยซื้อ (Aggressive)"
+        elif "Buy on Dip" in raw_strat: th_action = "ย่อซื้อ (Dip)"
+        elif "Accumulate" in raw_strat: th_action = "ทยอยสะสม"
+        elif "Wait" in raw_strat: th_action = "รอจังหวะ"
+        elif "No Trade" in raw_strat: th_action = "ทับมือ (ห้ามเล่น)"
+        elif "Exit" in raw_strat: th_action = "หนีตาย (Exit)"
+        elif "Reduce" in raw_strat: th_action = "ลดพอร์ต"
+        elif "Sell" in raw_strat: th_action = "เด้งขาย"
+        else: th_action = raw_strat 
+
+        # 3. แปลง Score เป็นภาษาไทย
+        raw_color = ai_report['status_color']
+        if raw_color == "green": th_score = "🟢 ขาขึ้น"
+        elif raw_color == "red": th_score = "🔴 ขาลง"
+        elif raw_color == "orange": th_score = "🟠 เสี่ยง"
+        else: th_score = "🟡 พักตัว"
+
+        log_entry = { 
+            "เวลา": current_time, 
+            "หุ้น": symbol_input, 
+            "TF": timeframe, 
+            "ราคา": f"{price:.2f}", 
+            "Change%": pct_str, # <--- ค่านี้จะถูกต้องแล้วครับ
+            "สถานะ": th_score,
+            "Action": th_action,
+            "SL": f"{ai_report['sl']:.2f}", 
+            "TP": f"{ai_report['tp']:.2f}"
+        }
         
         if submit_btn: 
             st.session_state['history_log'].insert(0, log_entry)
             if len(st.session_state['history_log']) > 10: st.session_state['history_log'] = st.session_state['history_log'][:10]
 
-        # --- DISPLAY UI (โครงสร้างเดิมที่ท่านชอบ 100%) ---
+
+        # --- DISPLAY UI ---
         logo_url = f"https://financialmodelingprep.com/image-stock/{symbol_input}.png"
         fallback_url = "https://cdn-icons-png.flaticon.com/512/720/720453.png"
         icon_html = f"""<img src="{logo_url}" onerror="this.onerror=null; this.src='{fallback_url}';" style="height: 50px; width: 50px; border-radius: 50%; vertical-align: middle; margin-right: 10px; object-fit: contain; background-color: white; border: 1px solid #e0e0e0; padding: 2px;">"""
@@ -916,8 +949,16 @@ if st.session_state['search_triggered']:
             st.markdown(f"""
             <div style="background-color: {c_theme['bg']}; border-left: 6px solid {c_theme['border']}; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
                 <h2 style="color: {c_theme['text']}; margin:0 0 10px 0; font-size: 28px;">{ai_report['banner_title']}</h2>
-                <h3 style="color: {c_theme['text']}; margin:0 0 15px 0; font-size: 20px; opacity: 0.9;">{ai_report['strategy']}</h3>
-                <p style="color: {c_theme['text']}; font-size: 16px; margin:0; line-height: 1.6;"><b>💡 Contextual Insight:</b> {ai_report['context']}</p>
+                <div style="font-size: 20px; font-weight: bold; color: {c_theme['text']}; margin-bottom: 5px;">
+                    {ai_report['strategy']}
+                </div>
+                <div style="font-size: 18px; color: {c_theme['text']}; margin-bottom: 15px; line-height: 1.5;">
+                    👉 {ai_report['holder_advice']}
+                </div>
+                <hr style="border-top: 1px solid {c_theme['text']}; opacity: 0.2; margin: 10px 0;">
+                <div style="font-size: 14px; color: {c_theme['text']}; opacity: 0.8;">
+                    <b>💡 Insight:</b> {ai_report['context']}
+                </div>
             </div>
             """, unsafe_allow_html=True)
             
@@ -935,15 +976,48 @@ if st.session_state['search_triggered']:
                 elif "red" in ai_report['status_color']: box_type = st.error
                 else: box_type = st.warning
                 
+                               # --- 🔥 UPDATE LOGIC: แก้บ้คแนะนำราคาเข้า (Smart Entry) ---
+                strat = ai_report['strategy']
+                sl_val = ai_report['sl']
+                tp_val = ai_report['tp']
+                sl_str_bold = f"**{sl_val:.2f}**"
+
+                # คำนวณจุดเข้าซื้อที่สมเหตุสมผล (Entry Logic)
+                if price < ema20:
+                    # ถ้าราคาต่ำกว่าเส้นค่าเฉลี่ย (ของถูก) -> ให้รับแถวนี้เลย หรือรอที่แนวรับถัดไป
+                    entry_txt = f"บริเวณนี้ (`{price:.2f}`) หรือแนวรับ"
+                else:
+                    # ถ้าราคาสูงกว่าเส้น (ของแพง) -> ให้รอย่อมาหาเส้น
+                    entry_txt = f"ย่อตัวลงมาใกล้ `{ema20:.2f}`"
+
+                if "Buy" in strat or "Accumulate" in strat:
+                    adv_holder = f"🟢 **ถือรันเทรนด์:** ยก Stop Loss ตามขึ้นไป (ระวังหลุด {sl_str_bold}) อย่าเพิ่งรีบขายหมู"
+                    adv_none = f"🛒 **หาจังหวะเข้า:** {entry_txt} โดยห้ามหลุด `{sl_val:.2f}`"
+                
+                elif "Sell" in strat or "Exit" in strat or "Reduce" in strat:
+                    adv_holder = f"🔴 **ลดพอร์ต/หนี:** สถานการณ์ไม่ดี ถ้าหลุด {sl_str_bold} ต้องเลิก"
+                    adv_none = "✋ **ห้ามรับมีด:** ราคากำลังลงแรง อย่าเพิ่งสวน รอฐานชัดเจน"
+                
+                else:
+                    adv_holder = f"🟡 **ถือรอ:** ถ้าทุนต่ำถือต่อได้ แต่ถ้าหลุด {sl_str_bold} ต้องหนี"
+                    adv_none = "👀 **เฝ้าดู:** ยังไม่ชัดเจน อย่าเพิ่งเข้าเทรด รอเลือกทางก่อน"
+
+                # --- 🔥 UPDATE 3: ปรับ Format กรอบราคา (ไม่มี Bullet) ---
                 box_type(f"""
-                ### 📝 บทสรุปและแผนการเทรด (Action Plan)
+                ### 🎯 แผนการเทรด (Execution Plan)
                 
-                **1. สถานการณ์ (Context):** {ai_report['context']}
+                * 🎒 **สำหรับคนมีของ:** {adv_holder}
+                * 🛒 **สำหรับคนไม่มีของ:** {adv_none}
                 
-                **2. คำแนะนำ (Action):** 👉 **{ai_report['strategy']}** : {ai_report['holder_advice']}
+                ---
                 
-                **3. แผนการเทรด (Setup):** 🛑 **Stop Loss (หนี):** {ai_report['sl']:.2f}  |  ✅ **Take Profit (เป้า):** {ai_report['tp']:.2f}
+                **🧱 Setup (กรอบราคา):**
+                
+                🛑 **SL :** **{sl_val:.2f}** (จุดหนี)
+                
+                ✅ **TP :** **{tp_val:.2f}** (จุดทำกำไร)
                 """)
+
 
         st.write(""); st.markdown("""<div class='disclaimer-box'>⚠️ <b>หมายเหตุ:</b> ข้อมูลนี้มาจากการวิเคราะห์ทางเทคนิคด้วยระบบ AI เพื่อประกอบการตัดสินใจเท่านั้น</div>""", unsafe_allow_html=True)
         
@@ -966,10 +1040,28 @@ if st.session_state['search_triggered']:
                         st.error("บันทึกไม่สำเร็จ โปรดตรวจสอบชื่อ Sheet หรือการแชร์สิทธิ์")
         
         st.divider()
-        st.subheader("📜 History Log (การค้นหาล่าสุด)")
+        st.subheader("📜 History Log (บันทึกการวิเคราะห์)")
         if st.session_state['history_log']: 
-            st.dataframe(pd.DataFrame(st.session_state['history_log']), use_container_width=True, hide_index=True)
+            df_hist = pd.DataFrame(st.session_state['history_log'])
+            
+            # เลือกโชว์เฉพาะคอลัมน์ที่จำเป็น (เพิ่ม SL, TP, Change%)
+            cols_to_show = ["เวลา", "หุ้น", "TF", "ราคา", "Change%", "สถานะ", "Action", "SL", "TP"]
+            final_cols = [c for c in cols_to_show if c in df_hist.columns]
+            
+            st.dataframe(
+                df_hist[final_cols], 
+                use_container_width=True, 
+                hide_index=True,
+                column_config={
+                    "หุ้น": st.column_config.TextColumn("Symbol", help="ชื่อหุ้น"),
+                    "สถานะ": st.column_config.TextColumn("Status", help="สถานะจาก God Mode"),
+                    "Change%": st.column_config.TextColumn("% Chg"),
+                    "SL": st.column_config.TextColumn("Stop Loss", help="จุดหนี"),
+                    "TP": st.column_config.TextColumn("Take Profit", help="เป้าขาย")
+                }
+            )
 
     else: 
         st.error("ไม่พบข้อมูลหุ้น หรือข้อมูลไม่เพียงพอสำหรับคำนวณ (ต้องมีมากกว่า 20 แท่ง)")
+
 
