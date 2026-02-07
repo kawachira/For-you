@@ -789,7 +789,7 @@ if st.session_state['search_triggered']:
         st_color = ai_report["status_color"]
         main_status = ai_report["banner_title"]
         
-        # --- 🔥 MODIFIED BANNER: No Icon, Single Line, Bold & Larger ---
+        # --- 🔥 BANNER STYLE (แยกบรรทัด + ลบวงเล็บ + ตัวหนาใหญ่) ---
         if st_color == "green": 
             s_bg = "#dcfce7"; s_col = "#166534"
         elif st_color == "red": 
@@ -799,15 +799,14 @@ if st.session_state['search_triggered']:
         else: 
             s_bg = "#fef9c3"; s_col = "#854d0e"
 
-        # ไม่มีไอคอนรูปกราฟ, white-space: nowrap เพื่อบังคับบรรทัดเดียว
+        # HTML Banner (แยก 2 div, ไม่มี icon)
         c2.markdown(f"""
-        <div style="background-color: {s_bg}; color: {s_col}; padding: 12px 15px; border-radius: 8px; border: 1px solid {s_bg}; display: flex; align-items: center; justify-content: center;">
-            <span style="font-weight: 700; font-size: 1.25rem; white-space: nowrap;">
-                {main_status} <span style="font-size: 1rem; opacity: 0.85; margin-left: 5px;">({tf_label})</span>
-            </span>
+        <div style="background-color: {s_bg}; color: {s_col}; padding: 12px 15px; border-radius: 8px; border: 1px solid {s_bg};">
+            <div style="font-weight: 800; font-size: 1.3rem; line-height: 1.2; margin-bottom: 5px;">{main_status}</div>
+            <div style="font-size: 1rem; font-weight: 600; opacity: 0.9;">{tf_label}</div>
         </div>
         """, unsafe_allow_html=True)
-        # ----------------------------------------------------------------
+        # ------------------------------------------------------------
 
         c3, c4 = st.columns(2)
         icon_flat_svg = """<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#a3a3a3"><circle cx="12" cy="12" r="10"/></svg>"""
@@ -998,7 +997,7 @@ if st.session_state['search_triggered']:
                 </div>
                 """, unsafe_allow_html=True)
 
-            # D. 🧗 CASE TESTING RESISTANCE (กำลังทดสอบแนวต้าน)
+                       # D. 🧗 CASE TESTING RESISTANCE (กำลังทดสอบแนวต้าน - แก้ไขให้เป็น Expander)
             elif next_res_val > 0 and (next_res_val - price) / price < 0.02:
                 # Breakout Scoring Logic
                 atk_score = 0
@@ -1016,19 +1015,18 @@ if st.session_state['search_triggered']:
                     break_msg = f"🧱 <b>ประเมิน: กำแพงหนา (Likely Reject)</b> ({', '.join(reasons)})"
                     b_bg = "#fff7ed"; b_border = "#f97316"; b_text = "#7c2d12"
 
-                st.markdown(f"""
-                <div style="background-color: {b_bg}; border: 1px solid {b_border}; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-                    <div style="color: {b_text}; font-weight: bold; font-size: 16px; margin-bottom: 5px;">
-                        🔮 Resistance Health Check (ตรวจสุขภาพแนวต้าน)
+                # 🔥 UPDATE: ใช้ st.expander ครอบแทน st.markdown ธรรมดา
+                with st.expander(f"**🔮 ตรวจสุขภาพแนวต้าน: {next_res_val:.2f} (กดเพื่อดู)**", expanded=False):
+                    st.markdown(f"""
+                    <div style="background-color: {b_bg}; border: 1px solid {b_border}; padding: 15px; border-radius: 10px;">
+                        <div style="color: {b_text}; font-weight: bold; margin-bottom: 5px;">
+                            🎯 กำลังทดสอบแนวต้าน: {next_res_val:.2f} ({next_res_desc})
+                        </div>
+                        <div style="color: {b_text}; font-style: italic;">
+                            {break_msg}
+                        </div>
                     </div>
-                    <div style="color: {b_text};">
-                        กำลังทดสอบแนวต้าน: <b>{next_res_val:.2f} ({next_res_desc})</b>
-                    </div>
-                    <div style="margin-top:5px; color: {b_text}; font-style: italic;">
-                        {break_msg}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
 
 
             # --- SUPPORTS ---
@@ -1311,4 +1309,5 @@ if st.session_state['search_triggered']:
 
     else: 
         st.error("ไม่พบข้อมูลหุ้น หรือข้อมูลไม่เพียงพอสำหรับคำนวณ (ต้องมีมากกว่า 20 แท่ง)")
+
 
