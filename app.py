@@ -23,31 +23,31 @@ if 'search_triggered' not in st.session_state:
 if 'last_symbol' not in st.session_state:
     st.session_state['last_symbol'] = ""
 
-# --- 2. CSS ปรับแต่ง (Clean & Professional - ปรับ Font เล็กลงตามสั่ง) ---
+# --- 2. CSS ปรับแต่ง (คืนค่า Font ขนาดใหญ่ Original) ---
 st.markdown("""
     <style>
     body { overflow-x: hidden; }
     .block-container { padding-top: 1rem !important; padding-bottom: 5rem !important; }
     
-    /* ปรับลดขนาด Font หัวข้อลงเล็กน้อย */
-    h1 { text-align: center; font-size: 2.2rem !important; margin-bottom: 0px !important; margin-top: 5px !important; }
+    /* คืนค่า Font หัวข้อให้ใหญ่เหมือนเดิม (2.8rem) */
+    h1 { text-align: center; font-size: 2.8rem !important; margin-bottom: 0px !important; margin-top: 5px !important; }
     
     div[data-testid="stForm"] {
-        border: none; padding: 25px; border-radius: 20px;
+        border: none; padding: 30px; border-radius: 20px;
         background-color: var(--secondary-background-color);
         box-shadow: 0 8px 24px rgba(0,0,0,0.12);
         max-width: 800px; margin: 0 auto;
     }
     
-    /* ปรับลดขนาด Font ปุ่มกดลงเล็กน้อย */
+    /* คืนค่า Font ปุ่มกดให้ใหญ่เหมือนเดิม (1.2rem) */
     div[data-testid="stFormSubmitButton"] button {
-        width: 100%; border-radius: 12px; font-size: 1.1rem; font-weight: bold; padding: 12px 0;
+        width: 100%; border-radius: 12px; font-size: 1.2rem; font-weight: bold; padding: 15px 0;
     }
     
     .disclaimer-box {
-        margin-top: 20px; margin-bottom: 20px; padding: 15px;
+        margin-top: 20px; margin-bottom: 20px; padding: 20px;
         background-color: #fff8e1; border: 2px solid #ffc107;
-        border-radius: 12px; font-size: 0.9rem; color: #5d4037;
+        border-radius: 12px; font-size: 1rem; color: #5d4037;
         text-align: center; font-weight: 500;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
@@ -63,7 +63,7 @@ st.markdown("""
     .xray-title {
         font-weight: bold;
         color: #0369a1;
-        font-size: 1.05rem; /* ลดขนาดลงนิดนึง */
+        font-size: 1.1rem; /* คืนค่าเดิม */
         margin-bottom: 10px;
         border-bottom: 1px solid #e0f2fe;
         padding-bottom: 5px;
@@ -72,13 +72,13 @@ st.markdown("""
         display: flex;
         justify-content: space-between;
         margin-bottom: 8px;
-        font-size: 0.9rem; /* ลดขนาดลงนิดนึง */
+        font-size: 0.95rem; /* คืนค่าเดิม */
     }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 3. ส่วนหัวข้อ ---
-st.markdown("<h1>💎 Ai<br><span style='font-size: 1.3rem; opacity: 0.7;'>Ultimate Sniper (God Mode Contextual)🚀</span></h1>", unsafe_allow_html=True)
+st.markdown("<h1>💎 Ai<br><span style='font-size: 1.5rem; opacity: 0.7;'>Ultimate Sniper (God Mode Contextual)🚀</span></h1>", unsafe_allow_html=True)
 
 # --- Form ค้นหา ---
 col_space1, col_form, col_space2 = st.columns([1, 2, 1])
@@ -188,14 +188,15 @@ def format_volume(vol):
     return f"{vol:,.0f}"
 
 def custom_metric_html(label, value, status_text, color_status, icon_svg):
+    # คืนค่าขนาด Font ให้ใหญ่ (18px, 24px, 15px)
     color_code = "#16a34a" if color_status == "green" else "#dc2626" if color_status == "red" else "#a3a3a3"
     html = f"""
     <div style="margin-bottom: 15px;">
         <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 5px;">
-            <div style="font-size: 16px; font-weight: 700; opacity: 0.9; color: var(--text-color); white-space: nowrap;">{label}</div>
-            <div style="font-size: 22px; font-weight: 700; color: var(--text-color);">{value}</div>
+            <div style="font-size: 18px; font-weight: 700; opacity: 0.9; color: var(--text-color); white-space: nowrap;">{label}</div>
+            <div style="font-size: 24px; font-weight: 700; color: var(--text-color);">{value}</div>
         </div>
-        <div style="display: flex; align-items: start; gap: 6px; font-size: 14px; font-weight: 600; color: {color_code}; line-height: 1.4;">
+        <div style="display: flex; align-items: start; gap: 6px; font-size: 15px; font-weight: 600; color: {color_code}; line-height: 1.4;">
             <div style="margin-top: 3px; min-width: 24px;">{icon_svg}</div>
             <div>{status_text}</div>
         </div>
@@ -314,7 +315,7 @@ def get_data_hybrid(symbol, interval, mtf_interval):
         else:
             price = df['Close'].iloc[-1]; chg = 0; pct = 0; d_h=0; d_l=0; d_o=0
 
-        # --- UPDATE: เพิ่มการดึงค่า P/E และ EPS ตรงนี้ ---
+        # --- UPDATE: เพิ่มการดึงค่า P/E และ EPS ตรงนี้ (เหมือนเดิม) ---
         info_dict = {
             'longName': raw_info.get('longName', symbol), 
             'marketState': raw_info.get('marketState', 'REGULAR'), 
@@ -322,7 +323,6 @@ def get_data_hybrid(symbol, interval, mtf_interval):
             'regularMarketChangePercent': pct, 'dayHigh': d_h, 'dayLow': d_l, 'regularMarketOpen': d_o,
             'preMarketPrice': raw_info.get('preMarketPrice'), 'preMarketChange': raw_info.get('preMarketChange'),
             'postMarketPrice': raw_info.get('postMarketPrice'), 'postMarketChange': raw_info.get('postMarketChange'),
-            # เพิ่ม PE และ EPS
             'trailingPE': raw_info.get('trailingPE'),
             'trailingEps': raw_info.get('trailingEps')
         }
@@ -339,13 +339,12 @@ def analyze_volume(row, vol_ma):
     else: return f"☁️ ปกติ ({pct:.0f}%)", "gray"
 
 # --- 7. AI Decision Engine (THE UPGRADED BRAIN - GOD MODE) ---
-# ระบบสมองใหม่: Contextual Scoring + 4-Bar Pattern + Volume Filter + Trend Integration
 
 def ai_hybrid_analysis(price, ema20, ema50, ema200, rsi, macd_val, macd_sig, adx, bb_up, bb_low, 
                        vol_status, mtf_trend, atr_val, mtf_ema200_val,
                        open_price, high, low, close, obv_val, obv_avg,
                        obv_slope, prev_open, prev_close, vol_now, vol_avg, demand_zones,
-                       is_squeeze, df_candles): # <--- รับ 4 แท่งตรงนี้
+                       is_squeeze, df_candles): 
 
     def safe(x): return float(x) if not np.isnan(float(x)) else np.nan
     price = safe(price); ema20 = safe(ema20); ema50 = safe(ema50); ema200 = safe(ema200)
@@ -567,27 +566,28 @@ if st.session_state['search_triggered']:
     
     st.divider()
     
-    # CSS ปรับแต่ง Expander และ Font เพิ่มเติมสำหรับส่วนแสดงผล
+    # CSS สำหรับปรับแต่งส่วนแสดงผล (คืนค่าขนาด Font เดิม)
     st.markdown("""
     <style>
     body { overflow: auto !important; }
-    /* บังคับฟอนต์หัวข้อ Expander ให้ใหญ่และหนา (ปรับลดขนาดลงนิดนึง) */
+    /* บังคับฟอนต์หัวข้อ Expander ให้ใหญ่ (คืนค่าเดิม) */
     div[data-testid="stExpander"] details summary p {
-        font-size: 16px !important;
+        font-size: 18px !important;
         font-weight: 700 !important;
         color: #333333 !important;
     }
     .metric-box {
         background: #f8f9fa;
-        padding: 4px 10px;
-        border-radius: 6px;
+        padding: 5px 12px;
+        border-radius: 8px;
         border: 1px solid #e9ecef;
-        font-size: 0.85rem;
+        font-size: 1rem; /* คืนค่าให้ใหญ่ขึ้น */
         color: #495057;
-        font-weight: 500;
+        font-weight: 600;
         display: inline-flex;
         align-items: center;
-        gap: 5px;
+        gap: 6px;
+        margin-top: 5px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -605,7 +605,7 @@ if st.session_state['search_triggered']:
             df_stats_day = pd.DataFrame(); df_stats_week = pd.DataFrame()
 
     if df is not None and not df.empty and len(df) > 20: 
-        # --- Indicator Calculation (คำนวณเหมือนเดิมเป๊ะ) ---
+        # --- Indicator Calculation ---
         df['EMA20'] = ta.ema(df['Close'], length=20)
         df['EMA50'] = ta.ema(df['Close'], length=50)
         
@@ -741,8 +741,8 @@ if st.session_state['search_triggered']:
         # --- DISPLAY UI ---
         logo_url = f"https://financialmodelingprep.com/image-stock/{symbol_input}.png"
         fallback_url = "https://cdn-icons-png.flaticon.com/512/720/720453.png"
-        icon_html = f"""<img src="{logo_url}" onerror="this.onerror=null; this.src='{fallback_url}';" style="height: 40px; width: 40px; border-radius: 50%; vertical-align: middle; margin-right: 10px; object-fit: contain; background-color: white; border: 1px solid #e0e0e0; padding: 2px;">"""
-        st.markdown(f"<h3 style='text-align: center; margin-top: -15px; margin-bottom: 20px;'>{icon_html} {info['longName']} ({symbol_input})</h3>", unsafe_allow_html=True)
+        icon_html = f"""<img src="{logo_url}" onerror="this.onerror=null; this.src='{fallback_url}';" style="height: 50px; width: 50px; border-radius: 50%; vertical-align: middle; margin-right: 10px; object-fit: contain; background-color: white; border: 1px solid #e0e0e0; padding: 2px;">"""
+        st.markdown(f"<h2 style='text-align: center; margin-top: -15px; margin-bottom: 25px;'>{icon_html} {info['longName']} ({symbol_input})</h2>", unsafe_allow_html=True)
 
         m_state = info.get('marketState', '').upper()
 
@@ -753,31 +753,35 @@ if st.session_state['search_triggered']:
             else: reg_pct = 0.0
             color_text = "#16a34a" if reg_chg and reg_chg > 0 else "#dc2626"; bg_color = "#e8f5ec" if reg_chg and reg_chg > 0 else "#fee2e2"
             
-            # Price Display (ปรับขนาดเล็กลง)
-            st.markdown(f"""<div style="margin-bottom:5px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;"><div style="font-size:32px; font-weight:600; line-height: 1;">{reg_price:,.2f} <span style="font-size: 16px; color: #6b7280; font-weight: 400;">USD</span></div><div style="display:inline-flex; align-items:center; gap:4px; background:{bg_color}; color:{color_text}; padding:2px 10px; border-radius:999px; font-size:16px; font-weight:500;">{arrow_html(reg_chg)} {reg_chg:+.2f} ({reg_pct:.2f}%)</div></div>""", unsafe_allow_html=True)
+            # Price Display (คืนค่าขนาดใหญ่: 40px/20px/18px)
+            st.markdown(f"""<div style="margin-bottom:5px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;"><div style="font-size:40px; font-weight:600; line-height: 1;">{reg_price:,.2f} <span style="font-size: 20px; color: #6b7280; font-weight: 400;">USD</span></div><div style="display:inline-flex; align-items:center; gap:6px; background:{bg_color}; color:{color_text}; padding:4px 12px; border-radius:999px; font-size:18px; font-weight:500;">{arrow_html(reg_chg)} {reg_chg:+.2f} ({reg_pct:.2f}%)</div></div>""", unsafe_allow_html=True)
             
-            # --- 🔥 ADDED: P/E & EPS Display ---
+            # เตรียม HTML สำหรับ P/E และ EPS
             pe = info.get('trailingPE')
             eps = info.get('trailingEps')
             pe_str = f"{pe:.2f}" if pe and pe > 0 else "N/A"
             eps_str = f"{eps:.2f}" if eps else "N/A"
-            
-            st.markdown(f"""
-            <div style="display: flex; gap: 10px; margin-bottom: 10px; margin-top: 5px;">
+            pe_eps_html = f"""
+            <div style="display: flex; gap: 12px; margin-bottom: 10px; margin-top: 8px;">
                 <div class="metric-box">📊 P/E: <b>{pe_str}</b></div>
                 <div class="metric-box">💰 EPS: <b>{eps_str}</b></div>
             </div>
-            """, unsafe_allow_html=True)
+            """
 
-            def make_pill(change, percent): color = "#16a34a" if change >= 0 else "#dc2626"; bg = "#e8f5ec" if change >= 0 else "#fee2e2"; arrow = "▲" if change >= 0 else "▼"; return f'<span style="background:{bg}; color:{color}; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin-left: 8px;">{arrow} {change:+.2f} ({percent:.2f}%)</span>'
+            def make_pill(change, percent): color = "#16a34a" if change >= 0 else "#dc2626"; bg = "#e8f5ec" if change >= 0 else "#fee2e2"; arrow = "▲" if change >= 0 else "▼"; return f'<span style="background:{bg}; color:{color}; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; margin-left: 8px;">{arrow} {change:+.2f} ({percent:.2f}%)</span>'
+            
             ohlc_html = ""; 
             if m_state != "REGULAR": 
                 d_open = info.get('regularMarketOpen'); d_high = info.get('dayHigh'); d_low = info.get('dayLow'); d_close = info.get('regularMarketPrice')
-                if d_open: day_chg = info.get('regularMarketChange', 0); val_color = "#16a34a" if day_chg >= 0 else "#dc2626"; ohlc_html = f"""<div style="font-size: 11px; font-weight: 600; margin-bottom: 5px; font-family: 'Source Sans Pro', sans-serif; white-space: nowrap; overflow-x: auto;"><span style="margin-right: 5px; opacity: 0.7;">O</span><span style="color: {val_color}; margin-right: 12px;">{d_open:.2f}</span><span style="margin-right: 5px; opacity: 0.7;">H</span><span style="color: {val_color}; margin-right: 12px;">{d_high:.2f}</span><span style="margin-right: 5px; opacity: 0.7;">L</span><span style="color: {val_color}; margin-right: 12px;">{d_low:.2f}</span><span style="margin-right: 5px; opacity: 0.7;">C</span><span style="color: {val_color};">{d_close:.2f}</span></div>"""
+                if d_open: day_chg = info.get('regularMarketChange', 0); val_color = "#16a34a" if day_chg >= 0 else "#dc2626"; ohlc_html = f"""<div style="font-size: 12px; font-weight: 600; margin-bottom: 5px; font-family: 'Source Sans Pro', sans-serif; white-space: nowrap; overflow-x: auto;"><span style="margin-right: 5px; opacity: 0.7;">O</span><span style="color: {val_color}; margin-right: 12px;">{d_open:.2f}</span><span style="margin-right: 5px; opacity: 0.7;">H</span><span style="color: {val_color}; margin-right: 12px;">{d_high:.2f}</span><span style="margin-right: 5px; opacity: 0.7;">L</span><span style="color: {val_color}; margin-right: 12px;">{d_low:.2f}</span><span style="margin-right: 5px; opacity: 0.7;">C</span><span style="color: {val_color};">{d_close:.2f}</span></div>"""
+            
             pre_post_html = ""
-            if info.get('preMarketPrice') and info.get('preMarketChange'): p = info.get('preMarketPrice'); c = info.get('preMarketChange'); prev_p = p - c; pct = (c / prev_p) * 100 if prev_p != 0 else 0; pre_post_html += f'<div style="margin-bottom: 6px; font-size: 11px;">☀️ Pre: <b>{p:.2f}</b> {make_pill(c, pct)}</div>'
-            if info.get('postMarketPrice') and info.get('postMarketChange'): p = info.get('postMarketPrice'); c = info.get('postMarketChange'); prev_p = p - c; pct = (c / prev_p) * 100 if prev_p != 0 else 0; pre_post_html += f'<div style="margin-bottom: 6px; font-size: 11px;">🌙 Post: <b>{p:.2f}</b> {make_pill(c, pct)}</div>'
-            if ohlc_html or pre_post_html: st.markdown(f'<div style="margin-top: -5px; margin-bottom: 10px;">{ohlc_html}{pre_post_html}</div>', unsafe_allow_html=True)
+            if info.get('preMarketPrice') and info.get('preMarketChange'): p = info.get('preMarketPrice'); c = info.get('preMarketChange'); prev_p = p - c; pct = (c / prev_p) * 100 if prev_p != 0 else 0; pre_post_html += f'<div style="margin-bottom: 6px; font-size: 12px;">☀️ Pre: <b>{p:.2f}</b> {make_pill(c, pct)}</div>'
+            if info.get('postMarketPrice') and info.get('postMarketChange'): p = info.get('postMarketPrice'); c = info.get('postMarketChange'); prev_p = p - c; pct = (c / prev_p) * 100 if prev_p != 0 else 0; pre_post_html += f'<div style="margin-bottom: 6px; font-size: 12px;">🌙 Post: <b>{p:.2f}</b> {make_pill(c, pct)}</div>'
+            
+            # 🔥 แสดงผลรวมกัน: OHLC/Pre-Post ขึ้นก่อน แล้วตามด้วย P/E EPS ล่างสุด
+            combined_html = f'<div style="margin-top: -5px; margin-bottom: 15px;">{ohlc_html}{pre_post_html}{pe_eps_html}</div>'
+            st.markdown(combined_html, unsafe_allow_html=True)
 
         if tf_code == "1h": tf_label = "TF Hour"
         elif tf_code == "1wk": tf_label = "TF Week"
@@ -785,7 +789,7 @@ if st.session_state['search_triggered']:
         st_color = ai_report["status_color"]
         main_status = ai_report["banner_title"]
         
-        # 🔥 ปรับลดระยะห่าง (ลบ \n ออกหนึ่งตัว)
+        # ปรับระยะห่างให้ชิดขึ้น (ลบ \n ออกหนึ่งตัว)
         msg_content = f"{main_status}\n**{tf_label}**"
         
         if st_color == "green": c2.success(f"📈 {msg_content}")
@@ -794,9 +798,10 @@ if st.session_state['search_triggered']:
         else: c2.warning(f"⚖️ {msg_content}")
 
         c3, c4 = st.columns(2)
-        icon_flat_svg = """<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="#a3a3a3"><circle cx="12" cy="12" r="10"/></svg>"""
+        icon_flat_svg = """<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#a3a3a3"><circle cx="12" cy="12" r="10"/></svg>"""
         with c3:
             rsi_str = f"{rsi:.2f}" if not np.isnan(rsi) else "N/A"; rsi_text = get_rsi_interpretation(rsi, adx_val > 25)
+            # Custom Metric ใช้ Font ใหญ่ตาม Function ใน Part 1
             st.markdown(custom_metric_html("⚡ RSI (14)", rsi_str, rsi_text, "gray", icon_flat_svg), unsafe_allow_html=True)
         with c4:
             adx_disp = float(adx_val) if not np.isnan(adx_val) else np.nan
@@ -820,14 +825,14 @@ if st.session_state['search_triggered']:
             atr_pct = (atr / price) * 100 if not np.isnan(atr) and price > 0 else 0; atr_s = f"{atr:.2f} ({atr_pct:.1f}%)" if not np.isnan(atr) else "N/A"
             bb_s = f"{bb_upper:.2f} / {bb_lower:.2f}" if not np.isnan(bb_upper) else "N/A"
 
-            # ปรับ Font ในตารางให้เล็กลง (0.95rem -> 0.9rem)
-            st.markdown(f"""<div style='background-color: var(--secondary-background-color); padding: 12px; border-radius: 10px; font-size: 0.9rem;'><div style='display:flex; justify-content:space-between; margin-bottom:5px; border-bottom:1px solid #ddd; font-weight:bold;'><span>Indicator</span> <span>Value</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 20</span> <span>{e20_s}</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 50</span> <span>{e50_s}</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 200</span> <span>{e200_s}</span></div><div style='display:flex; justify-content:space-between;'><span>Volume ({vol_str})</span> <span style='color:{ai_report['vol_quality_color']}'>{ai_report['vol_quality_msg']}</span></div><div style='display:flex; justify-content:space-between;'><span>ATR</span> <span>{atr_s}</span></div><div style='display:flex; justify-content:space-between;'><span>BB (Up/Low)</span> <span>{bb_s}</span></div></div>""", unsafe_allow_html=True)
+            # ตาราง Indicator (คืนค่าขนาด Font เดิม: 0.95rem)
+            st.markdown(f"""<div style='background-color: var(--secondary-background-color); padding: 15px; border-radius: 10px; font-size: 0.95rem;'><div style='display:flex; justify-content:space-between; margin-bottom:5px; border-bottom:1px solid #ddd; font-weight:bold;'><span>Indicator</span> <span>Value</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 20</span> <span>{e20_s}</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 50</span> <span>{e50_s}</span></div><div style='display:flex; justify-content:space-between;'><span>EMA 200</span> <span>{e200_s}</span></div><div style='display:flex; justify-content:space-between;'><span>Volume ({vol_str})</span> <span style='color:{ai_report['vol_quality_color']}'>{ai_report['vol_quality_msg']}</span></div><div style='display:flex; justify-content:space-between;'><span>ATR</span> <span>{atr_s}</span></div><div style='display:flex; justify-content:space-between;'><span>BB (Up/Low)</span> <span>{bb_s}</span></div></div>""", unsafe_allow_html=True)
             
             if tf_code == "1h": min_dist = atr * 1.0 
             elif tf_code == "1wk": min_dist = atr * 2.0 
             else: min_dist = atr * 1.5 
 
-            # --- 🔥 NEW: KEY LEVELS & ANALYSIS CENTER (Alert + Forecast) ---
+            # --- KEY LEVELS & ANALYSIS CENTER (Alert + Forecast) ---
             st.subheader("🚧 Key Levels & Analysis")
 
             # ----------------------------------------------------
@@ -881,12 +886,12 @@ if st.session_state['search_triggered']:
             next_res_val = 0
             next_res_desc = ""
             if candidates_res_check:
-                best_res = min(candidates_res_check, key=lambda x: x['val']) # เอาค่าที่ใกล้ราคาที่สุด (น้อยที่สุดที่ยังมากกว่าราคา)
+                best_res = min(candidates_res_check, key=lambda x: x['val']) 
                 next_res_val = best_res['val']
                 next_res_desc = best_res['label']
 
             # ----------------------------------------------------
-            # 3. 🚦 DISPLAY ALERTS (แสดงผลแจ้งเตือน - Expander)
+            # 3. 🚦 DISPLAY ALERTS (แสดงผลแจ้งเตือน)
             # ----------------------------------------------------
 
             # A. 🚨 CASE BREAKDOWN (หลุดแนวรับ)
@@ -900,8 +905,8 @@ if st.session_state['search_triggered']:
 
                 with st.expander("**🚨 WARNING: แนวรับแตก! (กดเพื่อดูรายละเอียด)**", expanded=False):
                     st.markdown(f"""
-                    <div style="background-color: #fef2f2; border: 1px solid #fca5a5; padding: 12px; border-radius: 10px; font-size: 0.9rem;">
-                        <div style="color: #7f1d1d; margin-bottom: 8px;">
+                    <div style="background-color: #fef2f2; border: 1px solid #fca5a5; padding: 15px; border-radius: 10px;">
+                        <div style="color: #7f1d1d; margin-bottom: 10px;">
                             ❌ ราคาได้หลุด: <b>{broken_txt}</b> ลงมาแล้ว
                         </div>
                         <div style="color: #b91c1c; font-style: italic;">
@@ -921,8 +926,8 @@ if st.session_state['search_triggered']:
 
                 with st.expander("**🚀 ALERT: เบรคแนวต้านแล้ว! (กดเพื่อดูรายละเอียด)**", expanded=False):
                     st.markdown(f"""
-                    <div style="background-color: #f0fdf4; border: 1px solid #86efac; padding: 12px; border-radius: 10px; font-size: 0.9rem;">
-                        <div style="color: #14532d; margin-bottom: 8px;">
+                    <div style="background-color: #f0fdf4; border: 1px solid #86efac; padding: 15px; border-radius: 10px;">
+                        <div style="color: #14532d; margin-bottom: 10px;">
                             ✅ ราคาทะลุผ่าน: <b>{break_txt}</b> ขึ้นมาได้อย่างสวยงาม
                         </div>
                         <div style="color: #15803d; font-style: italic;">
@@ -955,8 +960,8 @@ if st.session_state['search_triggered']:
                     h_bg = "#fef9c3"; h_border = "#eab308"; h_text = "#713f12"
 
                 st.markdown(f"""
-                <div style="background-color: {h_bg}; border: 1px solid {h_border}; padding: 12px; border-radius: 10px; margin-bottom: 20px; font-size: 0.9rem;">
-                    <div style="color: {h_text}; font-weight: bold; font-size: 15px; margin-bottom: 5px;">
+                <div style="background-color: {h_bg}; border: 1px solid {h_border}; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                    <div style="color: {h_text}; font-weight: bold; font-size: 16px; margin-bottom: 5px;">
                         🔮 Support Health Check (ตรวจสุขภาพแนวรับ)
                     </div>
                     <div style="color: {h_text};">
@@ -987,8 +992,8 @@ if st.session_state['search_triggered']:
                     b_bg = "#fff7ed"; b_border = "#f97316"; b_text = "#7c2d12"
 
                 st.markdown(f"""
-                <div style="background-color: {b_bg}; border: 1px solid {b_border}; padding: 12px; border-radius: 10px; margin-bottom: 20px; font-size: 0.9rem;">
-                    <div style="color: {b_text}; font-weight: bold; font-size: 15px; margin-bottom: 5px;">
+                <div style="background-color: {b_bg}; border: 1px solid {b_border}; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                    <div style="color: {b_text}; font-weight: bold; font-size: 16px; margin-bottom: 5px;">
                         🔮 Resistance Health Check (ตรวจสุขภาพแนวต้าน)
                     </div>
                     <div style="color: {b_text};">
@@ -999,6 +1004,7 @@ if st.session_state['search_triggered']:
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+
 
             # --- SUPPORTS ---
             candidates_supp = []
@@ -1012,7 +1018,6 @@ if st.session_state['search_triggered']:
                 except: d_ema50 = np.nan
                 try: d_ema200 = ta.ema(df_stats_day['Close'], length=200).iloc[-1]
                 except: d_ema200 = np.nan
-                # 🔥 FIX: ถ้าเล่น TF Day ไม่เอา Day มาโชว์ซ้ำ
                 if tf_code != "1d": 
                     if not np.isnan(d_ema50) and d_ema50 < price: candidates_supp.append({'val': d_ema50, 'label': "EMA 50 (TF Day - รับระยะกลาง)"})
                     if not np.isnan(d_ema200) and d_ema200 < price: candidates_supp.append({'val': d_ema200, 'label': "🛡️ EMA 200 (TF Day - รับใหญ่รายวัน)"})
@@ -1022,7 +1027,6 @@ if st.session_state['search_triggered']:
                 except: w_ema50 = np.nan
                 try: w_ema200 = ta.ema(df_stats_week['Close'], length=200).iloc[-1]
                 except: w_ema200 = np.nan
-                # 🔥 FIX: ถ้าเล่น TF Week ไม่เอา Week มาโชว์ซ้ำ
                 if tf_code != "1wk":
                     if not np.isnan(w_ema50) and w_ema50 < price: candidates_supp.append({'val': w_ema50, 'label': "EMA 50 (TF Week - รับระยะยาว)"})
                     if not np.isnan(w_ema200) and w_ema200 < price: candidates_supp.append({'val': w_ema200, 'label': "🛡️ EMA 200 (TF Week - รับระดับกองทุน)"})
@@ -1071,7 +1075,6 @@ if st.session_state['search_triggered']:
             if not df_stats_day.empty:
                 try: d_ema50 = ta.ema(df_stats_day['Close'], length=50).iloc[-1]
                 except: d_ema50 = np.nan
-                # 🔥 FIX: ถ้าเล่น TF Day อยู่แล้ว ไม่ต้องเอา Day มาโชว์ซ้ำ
                 if tf_code != "1d":
                     if not np.isnan(d_ema50) and d_ema50 > price: candidates_res.append({'val': d_ema50, 'label': "EMA 50 (TF Day)"})
                 try: high_60d = df_stats_day['High'].tail(60).max()
@@ -1083,7 +1086,6 @@ if st.session_state['search_triggered']:
                 except: w_ema50 = np.nan
                 try: w_ema200 = ta.ema(df_stats_week['Close'], length=200).iloc[-1]
                 except: w_ema200 = np.nan
-                # 🔥 FIX: ถ้าเล่น TF Week อยู่แล้ว ไม่ต้องเอา Week มาโชว์ซ้ำ
                 if tf_code != "1wk":
                     if not np.isnan(w_ema50) and w_ema50 > price: candidates_res.append({'val': w_ema50, 'label': "EMA 50 (TF Week - ต้านระยะยาว)"})
                     if not np.isnan(w_ema200) and w_ema200 > price: candidates_res.append({'val': w_ema200, 'label': "🛡️ EMA 200 (TF Week - ต้านระดับกองทุน)"})
@@ -1148,7 +1150,7 @@ if st.session_state['search_triggered']:
             </div>
             """, unsafe_allow_html=True)
             
-            # --- DISPLAY: AI Strategy & Execution Plan (Fixed Variable Method) ---
+            # --- AI Strategy & Execution Plan (Fixed Variable Method) ---
             
             color_map = {
                 "green": {"bg": "#dcfce7", "border": "#22c55e", "text": "#14532d"}, 
@@ -1158,7 +1160,6 @@ if st.session_state['search_triggered']:
             }
             c_theme = color_map.get(ai_report['status_color'], color_map["yellow"])
 
-            # Logic Calculation
             strat = ai_report['strategy']
             sl_val = ai_report['sl']
             tp_val = ai_report['tp']
@@ -1179,20 +1180,20 @@ if st.session_state['search_triggered']:
                 adv_holder = f"<span style='color:#854d0e'><b>🟡 ถือรอ:</b></span> ถ้าทุนต่ำถือต่อได้ แต่ถ้าหลุด {sl_str_bold} ต้องหนี"
                 adv_none = f"<span style='color:#854d0e'><b>👀 เฝ้าดู:</b></span> ยังไม่ชัดเจน อย่าเพิ่งเข้าเทรด รอเลือกทางก่อน"
 
-            # --- Construct HTML Strings (Variable Method) - ปรับ Font เล็กลง ---
+            # --- Construct HTML Strings (Variable Method) - คืนค่าขนาด Font เดิม ---
             
             # 1. AI Strategy HTML
             html_strategy = f"""
-            <div style="background-color: {c_theme['bg']}; border-left: 5px solid {c_theme['border']}; padding: 18px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                <h2 style="color: {c_theme['text']}; margin:0 0 8px 0; font-size: 22px; font-weight: 800;">{ai_report['banner_title']}</h2>
-                <div style="font-size: 18px; font-weight: 700; color: {c_theme['text']}; margin-bottom: 5px;">
+            <div style="background-color: {c_theme['bg']}; border-left: 6px solid {c_theme['border']}; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h2 style="color: {c_theme['text']}; margin:0 0 10px 0; font-size: 26px; font-weight: 800;">{ai_report['banner_title']}</h2>
+                <div style="font-size: 20px; font-weight: 700; color: {c_theme['text']}; margin-bottom: 5px;">
                     {ai_report['strategy']}
                 </div>
-                <div style="font-size: 16px; color: {c_theme['text']}; margin-bottom: 12px; line-height: 1.5;">
+                <div style="font-size: 18px; color: {c_theme['text']}; margin-bottom: 15px; line-height: 1.6;">
                     👉 {ai_report['holder_advice']}
                 </div>
-                <hr style="border-top: 1px solid {c_theme['text']}; opacity: 0.3; margin: 10px 0;">
-                <div style="font-size: 15px; color: {c_theme['text']}; opacity: 0.95;">
+                <hr style="border-top: 1px solid {c_theme['text']}; opacity: 0.3; margin: 12px 0;">
+                <div style="font-size: 16px; color: {c_theme['text']}; opacity: 0.95;">
                     <b>💡 Insight:</b> {ai_report['context']}
                 </div>
             </div>
@@ -1200,20 +1201,20 @@ if st.session_state['search_triggered']:
 
             # 2. Execution Plan HTML (Lavender Theme)
             html_plan = f"""
-            <div style="background-color: #faf5ff; border: 1px solid #e9d5ff; border-left: 5px solid #9333ea; padding: 18px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                <h3 style="color: #6b21a8; margin:0 0 12px 0; font-size: 20px; font-weight: 700;">🎯 แผนการเทรด (Execution Plan)</h3>
-                <div style="margin-bottom: 12px; font-size: 16px; color: #581c87; line-height: 1.5;">
-                    <div style="margin-bottom: 8px;">🎒 <b>สำหรับคนมีของ:</b><br>{adv_holder}</div>
+            <div style="background-color: #faf5ff; border: 1px solid #e9d5ff; border-left: 6px solid #9333ea; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h3 style="color: #6b21a8; margin:0 0 15px 0; font-size: 22px; font-weight: 700;">🎯 แผนการเทรด (Execution Plan)</h3>
+                <div style="margin-bottom: 15px; font-size: 17px; color: #581c87; line-height: 1.6;">
+                    <div style="margin-bottom: 10px;">🎒 <b>สำหรับคนมีของ:</b><br>{adv_holder}</div>
                     <div>🛒 <b>สำหรับคนไม่มีของ:</b><br>{adv_none}</div>
                 </div>
-                <hr style="border-top: 1px solid #9333ea; opacity: 0.3; margin: 12px 0;">
-                <div style="font-size: 16px; color: #581c87;">
+                <hr style="border-top: 1px solid #9333ea; opacity: 0.3; margin: 15px 0;">
+                <div style="font-size: 17px; color: #581c87;">
                     <b>🧱 Setup (กรอบราคา):</b><br>
-                    <div style="margin-top:8px; display:flex; gap:12px; flex-wrap:wrap;">
-                        <span style="background:#fee2e2; color:#991b1b; padding:3px 10px; border-radius:6px; font-weight:bold; border:1px solid #fecaca; font-size:14px;">
+                    <div style="margin-top:8px; display:flex; gap:15px; flex-wrap:wrap;">
+                        <span style="background:#fee2e2; color:#991b1b; padding:4px 12px; border-radius:6px; font-weight:bold; border:1px solid #fecaca;">
                             🛑 SL : {sl_val:.2f}
                         </span>
-                        <span style="background:#dcfce7; color:#166534; padding:3px 10px; border-radius:6px; font-weight:bold; border:1px solid #bbf7d0; font-size:14px;">
+                        <span style="background:#dcfce7; color:#166534; padding:4px 12px; border-radius:6px; font-weight:bold; border:1px solid #bbf7d0;">
                             ✅ TP : {tp_val:.2f}
                         </span>
                     </div>
@@ -1267,7 +1268,6 @@ if st.session_state['search_triggered']:
         if st.session_state['history_log']: 
             df_hist = pd.DataFrame(st.session_state['history_log'])
             
-            # เลือกโชว์เฉพาะคอลัมน์ที่จำเป็น (เพิ่ม SL, TP, Change%)
             cols_to_show = ["เวลา", "หุ้น", "TF", "ราคา", "Change%", "สถานะ", "Action", "SL", "TP"]
             final_cols = [c for c in cols_to_show if c in df_hist.columns]
             
