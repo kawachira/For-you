@@ -789,25 +789,25 @@ if st.session_state['search_triggered']:
         st_color = ai_report["status_color"]
         main_status = ai_report["banner_title"]
         
-        # --- 🔥 NEW BANNER: ใช้ HTML Custom แทน st.success เพื่อจัดฟอนต์ ---
+        # --- 🔥 MODIFIED BANNER: No Icon, Single Line, Bold & Larger ---
         if st_color == "green": 
-            s_bg = "#dcfce7"; s_col = "#166534"; s_icon = "📈"
+            s_bg = "#dcfce7"; s_col = "#166534"
         elif st_color == "red": 
-            s_bg = "#fee2e2"; s_col = "#991b1b"; s_icon = "📉"
+            s_bg = "#fee2e2"; s_col = "#991b1b"
         elif st_color == "orange": 
-            s_bg = "#ffedd5"; s_col = "#9a3412"; s_icon = "⚠️"
+            s_bg = "#ffedd5"; s_col = "#9a3412"
         else: 
-            s_bg = "#fef9c3"; s_col = "#854d0e"; s_icon = "⚖️"
+            s_bg = "#fef9c3"; s_col = "#854d0e"
 
-        # แสดงผล Banner (ตัวหนา, ใหญ่ขึ้นนิดนึง, บรรทัดเดียว, มีวงเล็บ)
+        # ไม่มีไอคอนรูปกราฟ, white-space: nowrap เพื่อบังคับบรรทัดเดียว
         c2.markdown(f"""
-        <div style="background-color: {s_bg}; color: {s_col}; padding: 10px 15px; border-radius: 8px; border: 1px solid {s_bg}; display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 1.2rem;">{s_icon}</span>
-            <span style="font-weight: 700; font-size: 1.15rem;">{main_status}</span>
-            <span style="font-size: 1rem; font-weight: 600; opacity: 0.9;">({tf_label})</span>
+        <div style="background-color: {s_bg}; color: {s_col}; padding: 12px 15px; border-radius: 8px; border: 1px solid {s_bg}; display: flex; align-items: center; justify-content: center;">
+            <span style="font-weight: 700; font-size: 1.25rem; white-space: nowrap;">
+                {main_status} <span style="font-size: 1rem; opacity: 0.85; margin-left: 5px;">({tf_label})</span>
+            </span>
         </div>
         """, unsafe_allow_html=True)
-        # ------------------------------------------------------------
+        # ----------------------------------------------------------------
 
         c3, c4 = st.columns(2)
         icon_flat_svg = """<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#a3a3a3"><circle cx="12" cy="12" r="10"/></svg>"""
